@@ -1,6 +1,66 @@
-import { useEffect, useState } from 'react'
-import { ArrowLeft, Eye, EyeOff, Trash2, RotateCcw } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import { ArrowLeft, Eye, EyeOff, Trash2, RotateCcw, Keyboard } from 'lucide-react'
 import { useToast } from '../components/Toast'
+
+// Convert a KeyboardEvent to an Electron-style accelerator string
+function eventToAccelerator(e: KeyboardEvent): string | null {
+  // Ignore modifier-only keydowns
+  if (['Meta', 'Control', 'Alt', 'Shift'].includes(e.key)) return null
+  const parts: string[] = []
+  if (e.metaKey || e.ctrlKey) parts.push('CmdOrCtrl')
+  if (e.altKey) parts.push('Alt')
+  if (e.shiftKey) parts.push('Shift')
+  // Map special keys
+  const keyMap: Record<string, string> = {
+    ' ': 'Space', ArrowUp: 'Up', ArrowDown: 'Down', ArrowLeft: 'Left', ArrowRight: 'Right',
+    Backspace: 'Backspace', Delete: 'Delete', Escape: 'Escape', Enter: 'Return',
+    Tab: 'Tab', Home: 'Home', End: 'End', PageUp: 'PageUp', PageDown: 'PageDown'
+  }
+  const key = keyMap[e.key] ?? (e.key.length === 1 ? e.key.toUpperCase() : e.key)
+  parts.push(key)
+  // Need at least a modifier + key for a global shortcut
+  if (parts.length < 2) return null
+  return parts.join('+')
+}
+
+function ShortcutCapture({
+  value,
+  onChange
+}: {
+  value: string
+  onChange: (v: string) => void
+}): JSX.Element {
+  const [capturing, setCapturing] = useState(false)
+  const ref = useRef<HTMLButtonElement>(null)
+
+  const handleKeyDown = (e: React.KeyboardEvent): void => {
+    e.preventDefault()
+    e.stopPropagation()
+    if (e.key === 'Escape') { setCapturing(false); return }
+    const acc = eventToAccelerator(e.nativeEvent)
+    if (acc) {
+      onChange(acc)
+      setCapturing(false)
+    }
+  }
+
+  return (
+    <button
+      ref={ref}
+      onFocus={() => setCapturing(true)}
+      onBlur={() => setCapturing(false)}
+      onKeyDown={capturing ? handleKeyDown : undefined}
+      className={`flex items-center gap-2 px-3 py-2 border rounded-lg text-sm font-mono transition-all outline-none
+        ${capturing
+          ? 'border-zinc-500 ring-2 ring-zinc-200 bg-zinc-50 text-zinc-500'
+          : 'border-zinc-300 bg-white text-zinc-700 hover:border-zinc-400 cursor-pointer'
+        }`}
+    >
+      <Keyboard className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
+      {capturing ? '按下快捷键...' : value}
+    </button>
+  )
+}
 
 interface Props {
   onBack: () => void
@@ -40,6 +100,8 @@ function SettingsPage({ onBack }: Props): JSX.Element {
   const [style, setStyle] = useState('简洁专业')
   const [systemPrompt, setSystemPrompt] = useState(DEFAULT_SYSTEM_PROMPT)
   const [reportTemplate, setReportTemplate] = useState(DEFAULT_REPORT_TEMPLATE)
+  const [shortcutLog, setShortcutLog] = useState('CmdOrCtrl+Shift+L')
+  const [shortcutTask, setShortcutTask] = useState('CmdOrCtrl+Shift+T')
   const toast = useToast()
 
   useEffect(() => {
@@ -66,6 +128,21 @@ function SettingsPage({ onBack }: Props): JSX.Element {
     if (sp) setSystemPrompt(sp)
     const rt = await window.api.settings.get('report_template')
     if (rt) setReportTemplate(rt)
+    const sl = await window.api.settings.get('shortcut_quick_log')
+    if (sl) setShortcutLog(sl)
+    const st = await window.api.settings.get('shortcut_quick_task')
+    if (st) setShortcutTask(st)
+  }
+
+  const handleShortcutChange = async (
+    key: 'shortcut_quick_log' | 'shortcut_quick_task',
+    value: string,
+    setter: (v: string) => void
+  ): Promise<void> => {
+    setter(value)
+    await window.api.settings.set(key, value)
+    await window.api.shortcut.update(key, value)
+    toast.success('快捷键已更新')
   }
 
   const maskKey = (key: string): string => {
@@ -354,6 +431,51 @@ function SettingsPage({ onBack }: Props): JSX.Element {
                 rows={10}
                 className="w-full px-3 py-2 border border-zinc-300 rounded-lg text-sm outline-none focus:border-zinc-500 focus:ring-2 focus:ring-zinc-200 font-mono leading-relaxed resize-y"
               />
+            </div>
+          </section>
+
+          {/* Shortcuts */}
+          <section>
+            <h2 className="text-sm font-semibold text-zinc-900 mb-1">全局快捷键</h2>
+            <div className="h-px bg-zinc-200 mb-4" />
+            <p className="text-xs text-zinc-400 mb-4">
+              点击快捷键框后按下新的组合键即可修改。快捷键在应用切换到后台后仍然有效。
+            </p>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-zinc-700 mb-1">快速记录日志</label>
+                <ShortcutCapture
+                  value={shortcutLog}
+                  onChange={(v) => handleShortcutChange('shortcut_quick_log', v, setShortcutLog)}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-zinc-700 mb-1">快速添加任务</label>
+                <ShortcutCapture
+                  value={shortcutTask}
+                  onChange={(v) => handleShortcutChange('shortcut_quick_task', v, setShortcutTask)}
+                />
+              </div>
+            </div>
+
+            <div className="mt-4 p-3 bg-zinc-50 rounded-lg">
+              <p className="text-xs font-medium text-zinc-600 mb-2">其他快捷键（不可修改）</p>
+              <div className="space-y-1">
+                {[
+                  ['Cmd+1 / 2 / 3', '切换日志 / 看板 / 报告'],
+                  ['Cmd+,', '打开设置'],
+                  ['Tab', '快速创建浮层中切换模式'],
+                  ['Esc', '关闭浮层 / 返回']
+                ].map(([key, desc]) => (
+                  <div key={key} className="flex items-center justify-between">
+                    <code className="text-xs bg-white border border-zinc-200 px-1.5 py-0.5 rounded text-zinc-600">
+                      {key}
+                    </code>
+                    <span className="text-xs text-zinc-400">{desc}</span>
+                  </div>
+                ))}
+              </div>
             </div>
           </section>
 

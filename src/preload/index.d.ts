@@ -60,6 +60,9 @@ interface API {
     set: (key: string, value: string) => Promise<void>
     delete: (key: string) => Promise<void>
   }
+  shortcut: {
+    update: (key: string, value: string) => Promise<boolean>
+  }
 }
 
 declare global {

@@ -36,6 +36,9 @@ const api = {
     set: (key: string, value: string) => ipcRenderer.invoke('settings:set', key, value),
     delete: (key: string) => ipcRenderer.invoke('settings:delete', key)
   },
+  shortcut: {
+    update: (key: string, value: string) => ipcRenderer.invoke('shortcut:update', key, value)
+  },
   on: {
     quickCreate: (cb: (type: QuickCreateType) => void) => {
       const logHandler = (): void => cb('log')
