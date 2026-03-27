@@ -180,6 +180,7 @@ function createTray(): void {
 // --- Window ---
 
 function createWindow(): void {
+  const iconPath = join(__dirname, '../../resources/icon.png')
   const mainWindow = new BrowserWindow({
     width: 800,
     height: 600,
@@ -187,6 +188,7 @@ function createWindow(): void {
     minHeight: 500,
     show: false,
     title: 'WorkPulse',
+    icon: iconPath,
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       sandbox: false
