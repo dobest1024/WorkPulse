@@ -4,44 +4,55 @@ import WorkLogPage from './pages/WorkLogPage'
 import ReportPage from './pages/ReportPage'
 import KanbanPage from './pages/KanbanPage'
 import SettingsPage from './pages/SettingsPage'
+import { QuickCreate } from './components/QuickCreate'
 
 type Page = 'worklog' | 'kanban' | 'report' | 'settings'
+type QuickCreateMode = 'log' | 'task' | null
 
 function App(): JSX.Element {
   const [currentPage, setCurrentPage] = useState<Page>('worklog')
+  const [quickCreate, setQuickCreate] = useState<QuickCreateMode>(null)
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
+      // Don't handle if quick-create is open (it handles its own keys)
+      if (quickCreate) return
+
       const isMod = e.metaKey || e.ctrlKey
 
-      // Cmd+1/2/3 — switch tabs
       if (isMod && e.key === '1') {
-        e.preventDefault()
-        setCurrentPage('worklog')
+        e.preventDefault(); setCurrentPage('worklog')
       } else if (isMod && e.key === '2') {
-        e.preventDefault()
-        setCurrentPage('kanban')
+        e.preventDefault(); setCurrentPage('kanban')
       } else if (isMod && e.key === '3') {
-        e.preventDefault()
-        setCurrentPage('report')
-      }
-      // Cmd+, — open settings
-      else if (isMod && e.key === ',') {
-        e.preventDefault()
-        setCurrentPage('settings')
-      }
-      // Esc — back from settings
-      else if (e.key === 'Escape' && currentPage === 'settings') {
+        e.preventDefault(); setCurrentPage('report')
+      } else if (isMod && e.key === ',') {
+        e.preventDefault(); setCurrentPage('settings')
+      } else if (e.key === 'Escape' && currentPage === 'settings') {
         setCurrentPage('worklog')
       }
     },
-    [currentPage]
+    [currentPage, quickCreate]
   )
 
   useEffect(() => {
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [handleKeyDown])
+
+  // Listen for IPC events from main process (menu bar / global shortcuts)
+  useEffect(() => {
+    const unsubCreate = window.api.on.quickCreate((type) => {
+      setQuickCreate(type)
+    })
+    const unsubNav = window.api.on.navigate((page) => {
+      setCurrentPage(page)
+    })
+    return () => {
+      unsubCreate()
+      unsubNav()
+    }
+  }, [])
 
   if (currentPage === 'settings') {
     return <SettingsPage onBack={() => setCurrentPage('worklog')} />
@@ -106,6 +117,14 @@ function App(): JSX.Element {
           {currentPage === 'report' && <ReportPage />}
         </div>
       </main>
+
+      {/* Quick Create overlay */}
+      {quickCreate && (
+        <QuickCreate
+          initialMode={quickCreate}
+          onClose={() => setQuickCreate(null)}
+        />
+      )}
     </div>
   )
 }

@@ -29,7 +29,14 @@ interface Task {
   completed_at: string | null
 }
 
+type QuickCreateType = 'log' | 'task'
+type NavigatePage = 'worklog' | 'kanban' | 'report' | 'settings'
+
 interface API {
+  on: {
+    quickCreate: (cb: (type: QuickCreateType) => void) => () => void
+    navigate: (cb: (page: NavigatePage) => void) => () => void
+  }
   task: {
     add: (title: string, description?: string, status?: 'todo' | 'draft') => Promise<Task>
     list: () => Promise<Task[]>

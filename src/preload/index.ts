@@ -1,6 +1,9 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import { electronAPI } from '@electron-toolkit/preload'
 
+type QuickCreateType = 'log' | 'task'
+type NavigatePage = 'worklog' | 'kanban' | 'report' | 'settings'
+
 const api = {
   worklog: {
     add: (content: string, category?: string) =>
@@ -32,6 +35,31 @@ const api = {
     get: (key: string) => ipcRenderer.invoke('settings:get', key),
     set: (key: string, value: string) => ipcRenderer.invoke('settings:set', key, value),
     delete: (key: string) => ipcRenderer.invoke('settings:delete', key)
+  },
+  on: {
+    quickCreate: (cb: (type: QuickCreateType) => void) => {
+      const logHandler = (): void => cb('log')
+      const taskHandler = (): void => cb('task')
+      ipcRenderer.on('quick-create:log', logHandler)
+      ipcRenderer.on('quick-create:task', taskHandler)
+      return () => {
+        ipcRenderer.removeListener('quick-create:log', logHandler)
+        ipcRenderer.removeListener('quick-create:task', taskHandler)
+      }
+    },
+    navigate: (cb: (page: NavigatePage) => void) => {
+      const pages: NavigatePage[] = ['worklog', 'kanban', 'report', 'settings']
+      const handlers = pages.map((page) => {
+        const handler = (): void => cb(page)
+        ipcRenderer.on(`navigate:${page}`, handler)
+        return { page, handler }
+      })
+      return () => {
+        handlers.forEach(({ page, handler }) =>
+          ipcRenderer.removeListener(`navigate:${page}`, handler)
+        )
+      }
+    }
   }
 }
 
