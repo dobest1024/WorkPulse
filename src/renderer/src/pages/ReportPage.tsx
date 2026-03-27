@@ -1,7 +1,29 @@
 import { useState, useEffect } from 'react'
-import { Copy, RefreshCw, AlertCircle, FileText, Check, Pencil, Eye } from 'lucide-react'
+import {
+  Copy,
+  RefreshCw,
+  AlertCircle,
+  FileText,
+  Check,
+  Pencil,
+  Eye,
+  ChevronDown,
+  ChevronUp,
+  Clock,
+  Trash2
+} from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import { getDateRange, type DatePreset } from '../lib/dateUtils'
+import { useToast } from '../components/Toast'
+
+interface Report {
+  id: number
+  type: string
+  date_from: string
+  date_to: string
+  content: string
+  generated_at: string
+}
 
 type Status = 'idle' | 'no_key' | 'generating' | 'success' | 'error' | 'no_data'
 
@@ -14,10 +36,15 @@ function ReportPage(): JSX.Element {
   const [errorMsg, setErrorMsg] = useState('')
   const [copied, setCopied] = useState(false)
   const [editing, setEditing] = useState(false)
+  const [history, setHistory] = useState<Report[]>([])
+  const [viewingReport, setViewingReport] = useState<Report | null>(null)
+  const [historyOpen, setHistoryOpen] = useState(true)
+  const toast = useToast()
 
   useEffect(() => {
     checkApiKey()
     applyPreset('this_week')
+    loadHistory()
   }, [])
 
   const checkApiKey = async (): Promise<void> => {
@@ -25,6 +52,11 @@ function ReportPage(): JSX.Element {
     if (!key) {
       setStatus('no_key')
     }
+  }
+
+  const loadHistory = async (): Promise<void> => {
+    const reports = await window.api.report.list(50)
+    setHistory(reports)
   }
 
   const applyPreset = (p: DatePreset): void => {
@@ -40,11 +72,13 @@ function ReportPage(): JSX.Element {
     setStatus('generating')
     setReportContent('')
     setErrorMsg('')
+    setViewingReport(null)
 
     try {
       const report = await window.api.report.generate(dateFrom, dateTo)
       setReportContent(report.content)
       setStatus('success')
+      await loadHistory()
     } catch (err) {
       const msg = err instanceof Error ? err.message : '生成失败'
       if (msg.includes('没有工作记录')) {
@@ -57,9 +91,30 @@ function ReportPage(): JSX.Element {
   }
 
   const handleCopy = async (): Promise<void> => {
-    await navigator.clipboard.writeText(reportContent)
+    const content = viewingReport ? viewingReport.content : reportContent
+    await navigator.clipboard.writeText(content)
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
+    toast.success('已复制到剪贴板')
+  }
+
+  const handleViewReport = (report: Report): void => {
+    setViewingReport(report)
+    setReportContent(report.content)
+    setStatus('success')
+    setEditing(false)
+  }
+
+  const handleBackToNew = (): void => {
+    setViewingReport(null)
+    setReportContent('')
+    setStatus('idle')
+    setEditing(false)
+  }
+
+  const formatReportDate = (dateStr: string): string => {
+    const d = new Date(dateStr)
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
   }
 
   const presets: { value: DatePreset; label: string }[] = [
@@ -70,60 +125,85 @@ function ReportPage(): JSX.Element {
     { value: 'this_quarter', label: '本季度' }
   ]
 
+  const isViewingHistory = viewingReport !== null
+
   return (
     <div>
-      {/* Date Range */}
-      <div className="mb-6">
-        <div className="flex flex-wrap gap-2 mb-3">
-          {presets.map((p) => (
-            <button
-              key={p.value}
-              onClick={() => applyPreset(p.value)}
-              className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
-                preset === p.value
-                  ? 'bg-zinc-900 text-white'
-                  : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200'
-              }`}
-            >
-              {p.label}
-            </button>
-          ))}
-        </div>
-        <div className="flex items-center gap-2 text-sm text-zinc-500">
-          <input
-            type="date"
-            value={dateFrom}
-            onChange={(e) => setDateFrom(e.target.value)}
-            className="px-2 py-1 border border-zinc-300 rounded-md text-sm outline-none focus:border-zinc-500"
-          />
-          <span>至</span>
-          <input
-            type="date"
-            value={dateTo}
-            onChange={(e) => setDateTo(e.target.value)}
-            className="px-2 py-1 border border-zinc-300 rounded-md text-sm outline-none focus:border-zinc-500"
-          />
-        </div>
-      </div>
-
-      {/* Generate Button */}
-      <button
-        onClick={handleGenerate}
-        disabled={status === 'no_key' || status === 'generating'}
-        className="mb-6 px-6 py-2.5 bg-zinc-900 text-white text-sm font-medium rounded-lg hover:bg-zinc-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-      >
-        {status === 'generating' ? (
-          <span className="flex items-center gap-2">
-            <RefreshCw className="w-4 h-4 animate-spin" />
-            AI 正在整理你的工作记录...
+      {/* Viewing history report header */}
+      {isViewingHistory && (
+        <div className="flex items-center gap-3 mb-4 pb-3 border-b border-zinc-200">
+          <button
+            onClick={handleBackToNew}
+            className="text-sm text-zinc-500 hover:text-zinc-700"
+          >
+            &larr; 返回生成
+          </button>
+          <span className="text-sm text-zinc-400">|</span>
+          <span className="text-sm text-zinc-600">
+            {viewingReport.date_from} 至 {viewingReport.date_to}
           </span>
-        ) : (
-          '生成报告'
-        )}
-      </button>
+          <span className="text-xs text-zinc-400">
+            生成于 {formatReportDate(viewingReport.generated_at)}
+          </span>
+        </div>
+      )}
+
+      {/* Date Range — only show when not viewing history */}
+      {!isViewingHistory && (
+        <>
+          <div className="mb-6">
+            <div className="flex flex-wrap gap-2 mb-3">
+              {presets.map((p) => (
+                <button
+                  key={p.value}
+                  onClick={() => applyPreset(p.value)}
+                  className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
+                    preset === p.value
+                      ? 'bg-zinc-900 text-white'
+                      : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200'
+                  }`}
+                >
+                  {p.label}
+                </button>
+              ))}
+            </div>
+            <div className="flex items-center gap-2 text-sm text-zinc-500">
+              <input
+                type="date"
+                value={dateFrom}
+                onChange={(e) => setDateFrom(e.target.value)}
+                className="px-2 py-1 border border-zinc-300 rounded-md text-sm outline-none focus:border-zinc-500"
+              />
+              <span>至</span>
+              <input
+                type="date"
+                value={dateTo}
+                onChange={(e) => setDateTo(e.target.value)}
+                className="px-2 py-1 border border-zinc-300 rounded-md text-sm outline-none focus:border-zinc-500"
+              />
+            </div>
+          </div>
+
+          {/* Generate Button */}
+          <button
+            onClick={handleGenerate}
+            disabled={status === 'no_key' || status === 'generating'}
+            className="mb-6 px-6 py-2.5 bg-zinc-900 text-white text-sm font-medium rounded-lg hover:bg-zinc-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            {status === 'generating' ? (
+              <span className="flex items-center gap-2">
+                <RefreshCw className="w-4 h-4 animate-spin" />
+                AI 正在整理你的工作记录...
+              </span>
+            ) : (
+              '生成报告'
+            )}
+          </button>
+        </>
+      )}
 
       {/* Status Messages */}
-      {status === 'no_key' && (
+      {status === 'no_key' && !isViewingHistory && (
         <div className="flex items-start gap-2 p-4 bg-amber-50 border border-amber-200 rounded-lg mb-6">
           <AlertCircle className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
           <div>
@@ -135,7 +215,7 @@ function ReportPage(): JSX.Element {
         </div>
       )}
 
-      {status === 'no_data' && (
+      {status === 'no_data' && !isViewingHistory && (
         <div className="text-center py-12">
           <FileText className="w-10 h-10 mx-auto text-zinc-300 mb-3" />
           <p className="text-zinc-500 mb-1">所选时间段内没有工作记录</p>
@@ -143,7 +223,7 @@ function ReportPage(): JSX.Element {
         </div>
       )}
 
-      {status === 'error' && (
+      {status === 'error' && !isViewingHistory && (
         <div className="flex items-start gap-2 p-4 bg-red-50 border border-red-200 rounded-lg mb-6">
           <AlertCircle className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
           <div>
@@ -226,22 +306,72 @@ function ReportPage(): JSX.Element {
                 </>
               )}
             </button>
-            <button
-              onClick={handleGenerate}
-              className="flex items-center gap-2 px-4 py-2 border border-zinc-300 text-zinc-600 text-sm rounded-md hover:bg-zinc-50 transition-colors"
-            >
-              <RefreshCw className="w-4 h-4" />
-              重新生成
-            </button>
+            {!isViewingHistory && (
+              <button
+                onClick={handleGenerate}
+                className="flex items-center gap-2 px-4 py-2 border border-zinc-300 text-zinc-600 text-sm rounded-md hover:bg-zinc-50 transition-colors"
+              >
+                <RefreshCw className="w-4 h-4" />
+                重新生成
+              </button>
+            )}
           </div>
         </div>
       )}
 
-      {/* Idle state */}
-      {status === 'idle' && (
+      {/* Idle state — show when no active report and not viewing history */}
+      {status === 'idle' && !isViewingHistory && history.length === 0 && (
         <div className="text-center py-12">
           <FileText className="w-10 h-10 mx-auto text-zinc-300 mb-3" />
           <p className="text-zinc-500">选择日期范围，一键生成工作报告</p>
+        </div>
+      )}
+
+      {/* Report History */}
+      {!isViewingHistory && history.length > 0 && (
+        <div className="mt-8 border-t border-zinc-200 pt-6">
+          <button
+            onClick={() => setHistoryOpen(!historyOpen)}
+            className="flex items-center gap-2 text-sm font-medium text-zinc-700 mb-4 hover:text-zinc-900"
+          >
+            <Clock className="w-4 h-4 text-zinc-400" />
+            历史报告
+            <span className="text-xs text-zinc-400 bg-zinc-100 px-1.5 py-0.5 rounded">
+              {history.length}
+            </span>
+            {historyOpen ? (
+              <ChevronUp className="w-4 h-4 text-zinc-400" />
+            ) : (
+              <ChevronDown className="w-4 h-4 text-zinc-400" />
+            )}
+          </button>
+
+          {historyOpen && (
+            <div className="space-y-2">
+              {history.map((report) => (
+                <button
+                  key={report.id}
+                  onClick={() => handleViewReport(report)}
+                  className="w-full text-left flex items-center justify-between px-4 py-3 bg-white border border-zinc-200 rounded-lg hover:border-zinc-300 hover:shadow-sm transition-all group"
+                >
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <FileText className="w-4 h-4 text-zinc-400 shrink-0" />
+                      <span className="text-sm text-zinc-700">
+                        {report.date_from} 至 {report.date_to}
+                      </span>
+                    </div>
+                    <p className="text-xs text-zinc-400 mt-1 ml-6 truncate">
+                      {report.content.slice(0, 80).replace(/[#*\n]/g, ' ').trim()}...
+                    </p>
+                  </div>
+                  <span className="text-xs text-zinc-400 shrink-0 ml-4">
+                    {formatReportDate(report.generated_at)}
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       )}
     </div>

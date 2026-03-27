@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Settings, FileText, ClipboardList, Columns3 } from 'lucide-react'
 import WorkLogPage from './pages/WorkLogPage'
 import ReportPage from './pages/ReportPage'
@@ -9,6 +9,39 @@ type Page = 'worklog' | 'kanban' | 'report' | 'settings'
 
 function App(): JSX.Element {
   const [currentPage, setCurrentPage] = useState<Page>('worklog')
+
+  const handleKeyDown = useCallback(
+    (e: KeyboardEvent) => {
+      const isMod = e.metaKey || e.ctrlKey
+
+      // Cmd+1/2/3 — switch tabs
+      if (isMod && e.key === '1') {
+        e.preventDefault()
+        setCurrentPage('worklog')
+      } else if (isMod && e.key === '2') {
+        e.preventDefault()
+        setCurrentPage('kanban')
+      } else if (isMod && e.key === '3') {
+        e.preventDefault()
+        setCurrentPage('report')
+      }
+      // Cmd+, — open settings
+      else if (isMod && e.key === ',') {
+        e.preventDefault()
+        setCurrentPage('settings')
+      }
+      // Esc — back from settings
+      else if (e.key === 'Escape' && currentPage === 'settings') {
+        setCurrentPage('worklog')
+      }
+    },
+    [currentPage]
+  )
+
+  useEffect(() => {
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [handleKeyDown])
 
   if (currentPage === 'settings') {
     return <SettingsPage onBack={() => setCurrentPage('worklog')} />
