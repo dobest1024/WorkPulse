@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
-import { ArrowLeft, Eye, EyeOff, Trash2, RotateCcw, Keyboard } from 'lucide-react'
+import { ArrowLeft, Eye, EyeOff, Trash2, RotateCcw, Keyboard, Sun, Moon, Monitor } from 'lucide-react'
 import { useToast } from '../components/Toast'
+import { useThemeStore } from '../stores/themeStore'
 
 // Convert a KeyboardEvent to an Electron-style accelerator string
 function eventToAccelerator(e: KeyboardEvent): string | null {
@@ -52,8 +53,8 @@ function ShortcutCapture({
       onKeyDown={capturing ? handleKeyDown : undefined}
       className={`flex items-center gap-2 px-3 py-2 border rounded-lg text-sm font-mono transition-all outline-none
         ${capturing
-          ? 'border-zinc-500 ring-2 ring-zinc-200 bg-zinc-50 text-zinc-500'
-          : 'border-zinc-300 bg-white text-zinc-700 hover:border-zinc-400 cursor-pointer'
+          ? 'border-zinc-500 ring-2 ring-zinc-200 dark:ring-zinc-700 bg-zinc-50 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400'
+          : 'border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:border-zinc-400 cursor-pointer'
         }`}
     >
       <Keyboard className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
@@ -103,6 +104,7 @@ function SettingsPage({ onBack }: Props): JSX.Element {
   const [shortcutLog, setShortcutLog] = useState('CmdOrCtrl+Shift+L')
   const [shortcutTask, setShortcutTask] = useState('CmdOrCtrl+Shift+T')
   const toast = useToast()
+  const { theme, setTheme } = useThemeStore()
 
   useEffect(() => {
     loadSettings()
@@ -226,17 +228,17 @@ function SettingsPage({ onBack }: Props): JSX.Element {
   }
 
   return (
-    <div className="h-screen flex flex-col">
+    <div className="h-screen flex flex-col bg-zinc-50 dark:bg-zinc-950">
       {/* Header */}
-      <header className="flex items-center px-4 py-3 border-b border-zinc-200 bg-white">
+      <header className="flex items-center px-4 py-3 border-b border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900">
         <button
           onClick={onBack}
-          className="p-2 text-zinc-500 hover:text-zinc-700 hover:bg-zinc-100 rounded-md transition-colors mr-2"
+          className="p-2 text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-md transition-colors mr-2"
           aria-label="返回"
         >
           <ArrowLeft className="w-5 h-5" />
         </button>
-        <h1 className="text-lg font-semibold text-zinc-900">设置</h1>
+        <h1 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">设置</h1>
       </header>
 
       {/* Content */}
@@ -244,16 +246,16 @@ function SettingsPage({ onBack }: Props): JSX.Element {
         <div className="max-w-2xl mx-auto px-4 py-6 space-y-8">
           {/* AI Configuration */}
           <section>
-            <h2 className="text-sm font-semibold text-zinc-900 mb-1">AI 配置</h2>
-            <div className="h-px bg-zinc-200 mb-4" />
+            <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100 mb-1">AI 配置</h2>
+            <div className="h-px bg-zinc-200 dark:bg-zinc-700 mb-4" />
 
             {/* API Key */}
             <div className="mb-4">
-              <label className="block text-sm font-medium text-zinc-700 mb-1">API Key</label>
+              <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">API Key</label>
               <p className="text-xs text-zinc-400 mb-2">用于生成工作报告的 AI 服务密钥</p>
               {hasKey && !editing ? (
                 <div className="flex items-center gap-2">
-                  <code className="flex-1 px-3 py-2 bg-zinc-100 rounded-md text-sm text-zinc-600 font-mono">
+                  <code className="flex-1 px-3 py-2 bg-zinc-100 dark:bg-zinc-800 rounded-md text-sm text-zinc-600 dark:text-zinc-400 font-mono">
                     {showKey ? apiKey : maskKey(apiKey)}
                   </code>
                   <button
@@ -284,11 +286,11 @@ function SettingsPage({ onBack }: Props): JSX.Element {
                     value={apiKey}
                     onChange={(e) => setApiKey(e.target.value)}
                     placeholder="粘贴你的 API Key"
-                    className="flex-1 px-3 py-2 border border-zinc-300 rounded-md text-sm outline-none focus:border-zinc-500 focus:ring-2 focus:ring-zinc-200"
+                    className="flex-1 px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-md text-sm outline-none focus:border-zinc-500 focus:ring-2 focus:ring-zinc-200 dark:focus:ring-zinc-700 bg-white dark:bg-zinc-800 dark:text-zinc-100"
                   />
                   <button
                     onClick={handleSaveKey}
-                    className="px-4 py-2 text-sm bg-zinc-900 text-white rounded-md hover:bg-zinc-800"
+                    className="px-4 py-2 text-sm bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 rounded-md hover:bg-zinc-800 dark:hover:bg-zinc-200"
                   >
                     保存
                   </button>
@@ -309,11 +311,11 @@ function SettingsPage({ onBack }: Props): JSX.Element {
 
             {/* AI Provider */}
             <div className="mb-4">
-              <label className="block text-sm font-medium text-zinc-700 mb-1">AI 服务</label>
+              <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">AI 服务</label>
               <select
                 value={provider}
                 onChange={(e) => handleProviderChange(e.target.value)}
-                className="px-3 py-2 border border-zinc-300 rounded-md text-sm outline-none focus:border-zinc-500 focus:ring-2 focus:ring-zinc-200"
+                className="px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-md text-sm outline-none focus:border-zinc-500 focus:ring-2 focus:ring-zinc-200 dark:focus:ring-zinc-700 bg-white dark:bg-zinc-800 dark:text-zinc-100"
               >
                 <option value="openai">OpenAI</option>
                 <option value="anthropic">Anthropic (Claude)</option>
@@ -322,7 +324,7 @@ function SettingsPage({ onBack }: Props): JSX.Element {
 
             {/* Base URL */}
             <div className="mb-4">
-              <label className="block text-sm font-medium text-zinc-700 mb-1">API Base URL</label>
+              <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">API Base URL</label>
               <p className="text-xs text-zinc-400 mb-2">
                 自定义 API 地址，留空使用官方默认地址。支持中转服务、本地模型等
               </p>
@@ -332,12 +334,12 @@ function SettingsPage({ onBack }: Props): JSX.Element {
                 onChange={(e) => setBaseUrl(e.target.value)}
                 onBlur={handleBaseUrlBlur}
                 placeholder={provider === 'openai' ? 'https://api.openai.com' : 'https://api.anthropic.com'}
-                className="w-full px-3 py-2 border border-zinc-300 rounded-md text-sm outline-none focus:border-zinc-500 focus:ring-2 focus:ring-zinc-200 font-mono"
+                className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-md text-sm outline-none focus:border-zinc-500 focus:ring-2 focus:ring-zinc-200 dark:focus:ring-zinc-700 bg-white dark:bg-zinc-800 dark:text-zinc-100 font-mono"
               />
             </div>
             {/* Model */}
             <div className="mb-4">
-              <label className="block text-sm font-medium text-zinc-700 mb-1">模型名称</label>
+              <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">模型名称</label>
               <p className="text-xs text-zinc-400 mb-2">
                 留空使用默认模型。如 qwen-plus、gpt-4o、claude-sonnet-4-20250514 等
               </p>
@@ -347,34 +349,34 @@ function SettingsPage({ onBack }: Props): JSX.Element {
                 onChange={(e) => setModel(e.target.value)}
                 onBlur={handleModelBlur}
                 placeholder={provider === 'openai' ? 'gpt-4o-mini' : 'claude-sonnet-4-20250514'}
-                className="w-full px-3 py-2 border border-zinc-300 rounded-md text-sm outline-none focus:border-zinc-500 focus:ring-2 focus:ring-zinc-200 font-mono"
+                className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-md text-sm outline-none focus:border-zinc-500 focus:ring-2 focus:ring-zinc-200 dark:focus:ring-zinc-700 bg-white dark:bg-zinc-800 dark:text-zinc-100 font-mono"
               />
             </div>
           </section>
 
           {/* Report Preferences */}
           <section>
-            <h2 className="text-sm font-semibold text-zinc-900 mb-1">报告偏好</h2>
-            <div className="h-px bg-zinc-200 mb-4" />
+            <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100 mb-1">报告偏好</h2>
+            <div className="h-px bg-zinc-200 dark:bg-zinc-700 mb-4" />
 
             <div className="grid grid-cols-2 gap-4 mb-4">
               <div>
-                <label className="block text-sm font-medium text-zinc-700 mb-1">报告语言</label>
+                <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">报告语言</label>
                 <select
                   value={language}
                   onChange={(e) => handleLanguageChange(e.target.value)}
-                  className="w-full px-3 py-2 border border-zinc-300 rounded-md text-sm outline-none focus:border-zinc-500 focus:ring-2 focus:ring-zinc-200"
+                  className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-md text-sm outline-none focus:border-zinc-500 focus:ring-2 focus:ring-zinc-200 dark:focus:ring-zinc-700 bg-white dark:bg-zinc-800 dark:text-zinc-100"
                 >
                   <option value="中文">中文</option>
                   <option value="English">English</option>
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-zinc-700 mb-1">报告风格</label>
+                <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">报告风格</label>
                 <select
                   value={style}
                   onChange={(e) => handleStyleChange(e.target.value)}
-                  className="w-full px-3 py-2 border border-zinc-300 rounded-md text-sm outline-none focus:border-zinc-500 focus:ring-2 focus:ring-zinc-200"
+                  className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-md text-sm outline-none focus:border-zinc-500 focus:ring-2 focus:ring-zinc-200 dark:focus:ring-zinc-700 bg-white dark:bg-zinc-800 dark:text-zinc-100"
                 >
                   <option value="简洁专业">简洁专业</option>
                   <option value="详细全面">详细全面</option>
@@ -404,7 +406,7 @@ function SettingsPage({ onBack }: Props): JSX.Element {
                 onChange={(e) => setSystemPrompt(e.target.value)}
                 onBlur={handleSystemPromptBlur}
                 rows={8}
-                className="w-full px-3 py-2 border border-zinc-300 rounded-lg text-sm outline-none focus:border-zinc-500 focus:ring-2 focus:ring-zinc-200 font-mono leading-relaxed resize-y"
+                className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg text-sm outline-none focus:border-zinc-500 focus:ring-2 focus:ring-zinc-200 dark:focus:ring-zinc-700 bg-white dark:bg-zinc-800 dark:text-zinc-100 font-mono leading-relaxed resize-y"
               />
             </div>
 
@@ -429,29 +431,29 @@ function SettingsPage({ onBack }: Props): JSX.Element {
                 onChange={(e) => setReportTemplate(e.target.value)}
                 onBlur={handleReportTemplateBlur}
                 rows={10}
-                className="w-full px-3 py-2 border border-zinc-300 rounded-lg text-sm outline-none focus:border-zinc-500 focus:ring-2 focus:ring-zinc-200 font-mono leading-relaxed resize-y"
+                className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg text-sm outline-none focus:border-zinc-500 focus:ring-2 focus:ring-zinc-200 dark:focus:ring-zinc-700 bg-white dark:bg-zinc-800 dark:text-zinc-100 font-mono leading-relaxed resize-y"
               />
             </div>
           </section>
 
           {/* Shortcuts */}
           <section>
-            <h2 className="text-sm font-semibold text-zinc-900 mb-1">全局快捷键</h2>
-            <div className="h-px bg-zinc-200 mb-4" />
+            <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100 mb-1">全局快捷键</h2>
+            <div className="h-px bg-zinc-200 dark:bg-zinc-700 mb-4" />
             <p className="text-xs text-zinc-400 mb-4">
               点击快捷键框后按下新的组合键即可修改。快捷键在应用切换到后台后仍然有效。
             </p>
 
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-zinc-700 mb-1">快速记录日志</label>
+                <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">快速记录日志</label>
                 <ShortcutCapture
                   value={shortcutLog}
                   onChange={(v) => handleShortcutChange('shortcut_quick_log', v, setShortcutLog)}
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-zinc-700 mb-1">快速添加任务</label>
+                <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">快速添加任务</label>
                 <ShortcutCapture
                   value={shortcutTask}
                   onChange={(v) => handleShortcutChange('shortcut_quick_task', v, setShortcutTask)}
@@ -459,7 +461,7 @@ function SettingsPage({ onBack }: Props): JSX.Element {
               </div>
             </div>
 
-            <div className="mt-4 p-3 bg-zinc-50 rounded-lg">
+            <div className="mt-4 p-3 bg-zinc-50 dark:bg-zinc-800/50 rounded-lg">
               <p className="text-xs font-medium text-zinc-600 mb-2">其他快捷键（不可修改）</p>
               <div className="space-y-1">
                 {[
@@ -469,7 +471,7 @@ function SettingsPage({ onBack }: Props): JSX.Element {
                   ['Esc', '关闭浮层 / 返回']
                 ].map(([key, desc]) => (
                   <div key={key} className="flex items-center justify-between">
-                    <code className="text-xs bg-white border border-zinc-200 px-1.5 py-0.5 rounded text-zinc-600">
+                    <code className="text-xs bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-600 px-1.5 py-0.5 rounded text-zinc-600 dark:text-zinc-400">
                       {key}
                     </code>
                     <span className="text-xs text-zinc-400">{desc}</span>
@@ -479,11 +481,37 @@ function SettingsPage({ onBack }: Props): JSX.Element {
             </div>
           </section>
 
+          {/* Appearance */}
+          <section>
+            <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100 mb-1">外观</h2>
+            <div className="h-px bg-zinc-200 dark:bg-zinc-700 mb-4" />
+            <div className="flex gap-2">
+              {([
+                { value: 'light', label: '浅色', Icon: Sun },
+                { value: 'dark', label: '深色', Icon: Moon },
+                { value: 'system', label: '跟随系统', Icon: Monitor }
+              ] as const).map(({ value, label, Icon }) => (
+                <button
+                  key={value}
+                  onClick={() => setTheme(value)}
+                  className={`flex items-center gap-1.5 px-3 py-2 text-sm rounded-md border transition-colors ${
+                    theme === value
+                      ? 'border-zinc-900 bg-zinc-900 text-white dark:border-zinc-100 dark:bg-zinc-100 dark:text-zinc-900'
+                      : 'border-zinc-300 dark:border-zinc-600 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800'
+                  }`}
+                >
+                  <Icon className="w-4 h-4" />
+                  {label}
+                </button>
+              ))}
+            </div>
+          </section>
+
           {/* About */}
           <section>
-            <h2 className="text-sm font-semibold text-zinc-900 mb-1">关于</h2>
-            <div className="h-px bg-zinc-200 mb-4" />
-            <p className="text-sm text-zinc-500">WorkPulse v0.1.0</p>
+            <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100 mb-1">关于</h2>
+            <div className="h-px bg-zinc-200 dark:bg-zinc-700 mb-4" />
+            <p className="text-sm text-zinc-500 dark:text-zinc-400">WorkPulse v0.1.0</p>
             <p className="text-xs text-zinc-400 mt-1">工作日志 + AI 报告生成桌面应用</p>
           </section>
         </div>

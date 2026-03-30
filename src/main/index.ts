@@ -149,7 +149,10 @@ function buildTrayMenu(): Electron.Menu {
 }
 
 function createTray(): void {
-  const iconPath = join(__dirname, '../../resources/tray-icon.png')
+  // In dev: resources/ is at project root. In production: extraResources copies it to app.getPath('exe')/../
+  const iconPath = is.dev
+    ? join(__dirname, '../../resources/tray-icon.png')
+    : join(process.resourcesPath, 'tray-icon.png')
   let icon = nativeImage.createFromPath(iconPath)
   if (icon.isEmpty()) {
     // Fallback: create a minimal 1x1 white pixel template image
@@ -158,7 +161,6 @@ function createTray(): void {
     )
   }
   icon.setTemplateImage(true)
-
   tray = new Tray(icon)
   tray.setToolTip('WorkPulse')
   tray.setContextMenu(buildTrayMenu())
@@ -180,7 +182,9 @@ function createTray(): void {
 // --- Window ---
 
 function createWindow(): void {
-  const iconPath = join(__dirname, '../../resources/icon.png')
+  const iconPath = is.dev
+    ? join(__dirname, '../../resources/icon.png')
+    : join(process.resourcesPath, 'icon.png')
   const mainWindow = new BrowserWindow({
     width: 800,
     height: 600,

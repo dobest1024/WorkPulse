@@ -12,6 +12,10 @@ const api = {
       ipcRenderer.invoke('worklog:list', limit, offset),
     byDateRange: (from: string, to: string) =>
       ipcRenderer.invoke('worklog:byDateRange', from, to),
+    search: (keyword: string) => ipcRenderer.invoke('worklog:search', keyword),
+    categories: () => ipcRenderer.invoke('worklog:categories') as Promise<string[]>,
+    setCategory: (id: number, category: string) =>
+      ipcRenderer.invoke('worklog:setCategory', id, category),
     delete: (id: number) => ipcRenderer.invoke('worklog:delete', id)
   },
   task: {
@@ -26,6 +30,9 @@ const api = {
     complete: (id: number, logContent: string) =>
       ipcRenderer.invoke('task:complete', id, logContent)
   },
+  stats: {
+    get: (days?: number) => ipcRenderer.invoke('stats:get', days)
+  },
   report: {
     generate: (dateFrom: string, dateTo: string) =>
       ipcRenderer.invoke('report:generate', dateFrom, dateTo),
@@ -38,6 +45,11 @@ const api = {
   },
   shortcut: {
     update: (key: string, value: string) => ipcRenderer.invoke('shortcut:update', key, value)
+  },
+  export: {
+    logs: (format: 'csv' | 'markdown') => ipcRenderer.invoke('export:logs', format),
+    report: (content: string, dateRange: string) =>
+      ipcRenderer.invoke('export:report', content, dateRange)
   },
   on: {
     quickCreate: (cb: (type: QuickCreateType) => void) => {

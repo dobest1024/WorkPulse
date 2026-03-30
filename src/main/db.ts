@@ -86,6 +86,12 @@ function createTables(): void {
 }
 
 function runMigrations(): void {
+  // Migration: add due_date column
+  const colInfo = db.prepare("PRAGMA table_info('tasks')").all() as { name: string }[]
+  if (!colInfo.some((c) => c.name === 'due_date')) {
+    db.exec("ALTER TABLE tasks ADD COLUMN due_date TEXT DEFAULT NULL")
+  }
+
   // Migration: add 'draft' to tasks status CHECK constraint
   // SQLite can't ALTER CHECK constraints, so recreate table if needed
   const tableInfo = db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='tasks'").get() as { sql: string } | undefined
@@ -161,6 +167,13 @@ export function getWorkLogsByDateRange(from: string, to: string): WorkLog[] {
   return stmt.all(from, to) as WorkLog[]
 }
 
+export function searchWorkLogs(keyword: string, limit = 200): WorkLog[] {
+  const stmt = db.prepare(
+    'SELECT * FROM work_logs WHERE content LIKE ? ORDER BY created_at DESC LIMIT ?'
+  )
+  return stmt.all(`%${keyword}%`, limit) as WorkLog[]
+}
+
 export function deleteWorkLog(id: number): boolean {
   const stmt = db.prepare('DELETE FROM work_logs WHERE id = ?')
   const result = stmt.run(id)
@@ -207,6 +220,7 @@ export interface Task {
   created_at: string
   updated_at: string
   completed_at: string | null
+  due_date: string | null
 }
 
 export function addTask(title: string, description = '', status: 'todo' | 'draft' = 'todo'): Task {
@@ -227,7 +241,7 @@ export function getTasks(): Task[] {
 
 export function updateTask(
   id: number,
-  updates: Partial<Pick<Task, 'title' | 'description' | 'status' | 'position'>>
+  updates: Partial<Pick<Task, 'title' | 'description' | 'status' | 'position' | 'due_date'>>
 ): Task | null {
   const fields: string[] = []
   const values: unknown[] = []
@@ -252,6 +266,10 @@ export function updateTask(
   if (updates.position !== undefined) {
     fields.push('position = ?')
     values.push(updates.position)
+  }
+  if (updates.due_date !== undefined) {
+    fields.push('due_date = ?')
+    values.push(updates.due_date)
   }
 
   fields.push("updated_at = datetime('now', 'localtime')")
@@ -279,6 +297,88 @@ export function reorderTasks(taskIds: number[], status: string): void {
 }
 
 // --- Settings CRUD ---
+
+export interface DailyStats {
+  date: string
+  log_count: number
+  task_completed: number
+}
+
+export function getStats(days = 30): {
+  daily: DailyStats[]
+  totalLogs: number
+  totalTasksDone: number
+  totalTasksActive: number
+  streak: number
+} {
+  const daily = db.prepare(`
+    SELECT date(created_at) as date, COUNT(*) as log_count, 0 as task_completed
+    FROM work_logs
+    WHERE created_at >= datetime('now', '-${days} days', 'localtime')
+    GROUP BY date(created_at)
+    ORDER BY date ASC
+  `).all() as DailyStats[]
+
+  // Merge completed tasks per day
+  const taskDone = db.prepare(`
+    SELECT date(completed_at) as date, COUNT(*) as cnt
+    FROM tasks
+    WHERE completed_at IS NOT NULL AND completed_at >= datetime('now', '-${days} days', 'localtime')
+    GROUP BY date(completed_at)
+  `).all() as { date: string; cnt: number }[]
+
+  const doneMap = new Map(taskDone.map((r) => [r.date, r.cnt]))
+  for (const d of daily) {
+    d.task_completed = doneMap.get(d.date) || 0
+  }
+  // Add days that only have completed tasks but no logs
+  for (const [date, cnt] of doneMap) {
+    if (!daily.find((d) => d.date === date)) {
+      daily.push({ date, log_count: 0, task_completed: cnt })
+    }
+  }
+  daily.sort((a, b) => a.date.localeCompare(b.date))
+
+  const totalLogs = (db.prepare('SELECT COUNT(*) as c FROM work_logs').get() as { c: number }).c
+  const totalTasksDone = (db.prepare("SELECT COUNT(*) as c FROM tasks WHERE status = 'done'").get() as { c: number }).c
+  const totalTasksActive = (db.prepare("SELECT COUNT(*) as c FROM tasks WHERE status IN ('todo', 'in_progress')").get() as { c: number }).c
+
+  // Calculate streak (consecutive days with logs ending today or yesterday)
+  let streak = 0
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const logDates = new Set(daily.map((d) => d.date))
+  for (let i = 0; i <= days; i++) {
+    const d = new Date(today)
+    d.setDate(d.getDate() - i)
+    const dateStr = d.toISOString().slice(0, 10)
+    if (logDates.has(dateStr)) {
+      streak++
+    } else if (i === 0) {
+      // Today has no logs yet, that's ok, check from yesterday
+      continue
+    } else {
+      break
+    }
+  }
+
+  return { daily, totalLogs, totalTasksDone, totalTasksActive, streak }
+}
+
+export function getAllWorkLogs(): WorkLog[] {
+  return db.prepare('SELECT * FROM work_logs ORDER BY created_at DESC').all() as WorkLog[]
+}
+
+export function getCategories(): string[] {
+  const rows = db.prepare(
+    "SELECT DISTINCT category FROM work_logs WHERE category != '' ORDER BY category"
+  ).all() as { category: string }[]
+  return rows.map((r) => r.category)
+}
+
+export function updateWorkLogCategory(id: number, category: string): void {
+  db.prepare('UPDATE work_logs SET category = ? WHERE id = ?').run(category, id)
+}
 
 export function getSetting(key: string): string | null {
   const stmt = db.prepare('SELECT value FROM settings WHERE key = ?')

@@ -1,4 +1,5 @@
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState, useRef, useCallback } from 'react'
+import { createPortal } from 'react-dom'
 import {
   DndContext,
   DragOverlay,
@@ -18,7 +19,7 @@ import {
   arrayMove
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { Plus, Trash2, GripVertical, Archive, ChevronRight, ChevronLeft } from 'lucide-react'
+import { Plus, Trash2, GripVertical, Archive, ChevronRight, ChevronLeft, Calendar } from 'lucide-react'
 import { useTaskStore } from '../stores/taskStore'
 import { useToast } from '../components/Toast'
 
@@ -28,6 +29,7 @@ interface Task {
   description: string
   status: 'todo' | 'in_progress' | 'done' | 'draft'
   position: number
+  due_date: string | null
 }
 
 type ColumnId = 'todo' | 'in_progress' | 'done'
@@ -54,7 +56,7 @@ function DroppableColumn({
   return (
     <div
       ref={setNodeRef}
-      className={`min-h-[100px] rounded-lg transition-colors ${isOver ? 'bg-zinc-100' : ''}`}
+      className={`min-h-[100px] rounded-lg transition-colors ${isOver ? 'bg-zinc-100 dark:bg-zinc-800' : ''}`}
     >
       {children}
     </div>
@@ -62,15 +64,86 @@ function DroppableColumn({
 }
 
 // --- Sortable Task Card ---
+function getDueDateStatus(due: string | null): 'normal' | 'soon' | 'overdue' | null {
+  if (!due) return null
+  const now = new Date()
+  now.setHours(0, 0, 0, 0)
+  const dueDate = new Date(due + 'T00:00:00')
+  const diff = (dueDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)
+  if (diff < 0) return 'overdue'
+  if (diff <= 2) return 'soon'
+  return 'normal'
+}
+
+function formatDue(due: string): string {
+  const d = new Date(due + 'T00:00:00')
+  return `${d.getMonth() + 1}/${d.getDate()}`
+}
+
+// Portal date picker — renders outside dnd-kit transform context so native picker positions correctly
+function DatePickerPortal({
+  anchorRect,
+  defaultValue,
+  onChange,
+  onClose
+}: {
+  anchorRect: DOMRect
+  defaultValue: string
+  onChange: (value: string) => void
+  onClose: () => void
+}): JSX.Element {
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    // Auto-open the native picker after mount
+    requestAnimationFrame(() => inputRef.current?.showPicker?.())
+  }, [])
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent): void => {
+      if (inputRef.current && !inputRef.current.contains(e.target as Node)) {
+        onClose()
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [onClose])
+
+  // Position below the anchor button
+  const top = anchorRect.bottom + 4
+  const left = anchorRect.left
+
+  return createPortal(
+    <div className="fixed z-[100]" style={{ top, left }}>
+      <input
+        ref={inputRef}
+        type="date"
+        defaultValue={defaultValue}
+        onChange={(e) => {
+          onChange(e.target.value)
+          onClose()
+        }}
+        onBlur={onClose}
+        onKeyDown={(e) => e.key === 'Escape' && onClose()}
+        className="text-xs border border-zinc-300 dark:border-zinc-600 rounded px-1.5 py-0.5 outline-none bg-white dark:bg-zinc-700 dark:text-zinc-200 shadow-lg"
+      />
+    </div>,
+    document.body
+  )
+}
+
 function SortableTaskCard({
   task,
-  onDelete
+  onDelete,
+  onSetDue
 }: {
   task: Task
   onDelete: (id: number) => void
+  onSetDue?: (id: number, date: string | null) => void
 }): JSX.Element {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: task.id })
+  const [pickerRect, setPickerRect] = useState<DOMRect | null>(null)
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -78,11 +151,29 @@ function SortableTaskCard({
     opacity: isDragging ? 0.4 : 1
   }
 
+  const dueStatus = getDueDateStatus(task.due_date)
+  const dueColor = dueStatus === 'overdue'
+    ? 'text-red-500'
+    : dueStatus === 'soon'
+      ? 'text-amber-500'
+      : 'text-zinc-400'
+
+  const openPicker = useCallback((e: React.MouseEvent) => {
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+    setPickerRect(rect)
+  }, [])
+
+  const handleDateChange = useCallback((value: string): void => {
+    onSetDue?.(task.id, value || null)
+  }, [onSetDue, task.id])
+
+  const closePicker = useCallback(() => setPickerRect(null), [])
+
   return (
     <div
       ref={setNodeRef}
       style={style}
-      className="group flex items-start gap-2 p-3 bg-white border border-zinc-200 rounded-lg shadow-sm hover:shadow-md transition-shadow"
+      className="group flex items-start gap-2 p-3 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg shadow-sm hover:shadow-md transition-all duration-200 card-hover animate-pop-in"
     >
       <button
         {...attributes}
@@ -92,9 +183,39 @@ function SortableTaskCard({
         <GripVertical className="w-4 h-4" />
       </button>
       <div className="flex-1 min-w-0">
-        <p className="text-sm text-zinc-800 break-words">{task.title}</p>
+        <p className="text-sm text-zinc-800 dark:text-zinc-200 break-words">{task.title}</p>
         {task.description && (
           <p className="text-xs text-zinc-400 mt-1 break-words">{task.description}</p>
+        )}
+        {onSetDue && (
+          <div className="flex items-center gap-2 mt-1">
+            {task.due_date ? (
+              <button
+                onClick={openPicker}
+                className={`flex items-center gap-1 text-xs ${dueColor}`}
+                title={`截止: ${task.due_date}`}
+              >
+                <Calendar className="w-3 h-3" />
+                {formatDue(task.due_date)}
+              </button>
+            ) : (
+              <button
+                onClick={openPicker}
+                className="opacity-0 group-hover:opacity-100 flex items-center gap-1 text-xs text-zinc-300 hover:text-zinc-500 transition-all"
+              >
+                <Calendar className="w-3 h-3" />
+                截止
+              </button>
+            )}
+            {pickerRect && (
+              <DatePickerPortal
+                anchorRect={pickerRect}
+                defaultValue={task.due_date || ''}
+                onChange={handleDateChange}
+                onClose={closePicker}
+              />
+            )}
+          </div>
         )}
       </div>
       <button
@@ -111,8 +232,8 @@ function SortableTaskCard({
 // --- Overlay Card (while dragging) ---
 function TaskCardOverlay({ task }: { task: Task }): JSX.Element {
   return (
-    <div className="p-3 bg-white border border-zinc-300 rounded-lg shadow-lg rotate-2">
-      <p className="text-sm text-zinc-800">{task.title}</p>
+    <div className="p-3 bg-white dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-600 rounded-lg shadow-lg rotate-2 scale-105">
+      <p className="text-sm text-zinc-800 dark:text-zinc-200">{task.title}</p>
     </div>
   )
 }
@@ -145,9 +266,9 @@ function CompleteDialog({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-      <div className="bg-white rounded-xl shadow-2xl w-full max-w-md mx-4 p-6">
-        <h3 className="text-base font-semibold text-zinc-900 mb-1">任务完成</h3>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 animate-fade-in">
+      <div className="bg-white dark:bg-zinc-900 rounded-xl shadow-2xl w-full max-w-md mx-4 p-6 animate-scale-in">
+        <h3 className="text-base font-semibold text-zinc-900 dark:text-zinc-100 mb-1">任务完成</h3>
         <p className="text-sm text-zinc-500 mb-4">
           记录一下这个任务的产出？（将自动写入工作日志）
         </p>
@@ -157,7 +278,7 @@ function CompleteDialog({
           onChange={(e) => setLogContent(e.target.value)}
           onKeyDown={handleKeyDown}
           rows={3}
-          className="w-full px-3 py-2 border border-zinc-300 rounded-lg text-sm outline-none focus:border-zinc-500 focus:ring-2 focus:ring-zinc-200 resize-none mb-4"
+          className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg text-sm outline-none focus:border-zinc-500 focus:ring-2 focus:ring-zinc-200 dark:focus:ring-zinc-700 bg-white dark:bg-zinc-800 dark:text-zinc-100 resize-none mb-4"
         />
         <div className="flex justify-end gap-2">
           <button
@@ -180,7 +301,7 @@ function CompleteDialog({
 
 // --- Main Kanban Page ---
 function KanbanPage(): JSX.Element {
-  const { tasks, fetchTasks, addTask, deleteTask, completeTask, reorderTasks } =
+  const { tasks, fetchTasks, addTask, updateTask, deleteTask, completeTask, reorderTasks } =
     useTaskStore()
   const toast = useToast()
   const [newTaskTitle, setNewTaskTitle] = useState('')
@@ -188,7 +309,10 @@ function KanbanPage(): JSX.Element {
   const [activeTask, setActiveTask] = useState<Task | null>(null)
   const [pendingComplete, setPendingComplete] = useState<Task | null>(null)
   const [localTasks, setLocalTasks] = useState<Task[]>([])
-  const [draftOpen, setDraftOpen] = useState(true)
+  const [draftOpen, setDraftOpen] = useState(() => {
+    const saved = localStorage.getItem('kanban:draftOpen')
+    return saved !== null ? saved === 'true' : true
+  })
 
   useEffect(() => {
     fetchTasks()
@@ -307,12 +431,16 @@ function KanbanPage(): JSX.Element {
     if (!pendingComplete) return
     await completeTask(pendingComplete.id, logContent)
     setPendingComplete(null)
-    toast.success('任务已完成，已写入工作日志')
+    toast.success('🎉 任务已完成，已写入工作日志')
   }
 
   const handleCancelComplete = async (): Promise<void> => {
     setPendingComplete(null)
     await fetchTasks()
+  }
+
+  const handleSetDue = async (id: number, date: string | null): Promise<void> => {
+    await updateTask(id, { due_date: date })
   }
 
   const handleDelete = async (id: number): Promise<void> => {
@@ -340,11 +468,11 @@ function KanbanPage(): JSX.Element {
               onChange={(e) => setNewTaskTitle(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleAddTask()}
               placeholder="添加新任务..."
-              className="flex-1 px-3 py-2 border border-zinc-300 rounded-lg text-sm outline-none focus:border-zinc-500 focus:ring-2 focus:ring-zinc-200"
+              className="flex-1 px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg text-sm outline-none focus:border-zinc-500 focus:ring-2 focus:ring-zinc-200 dark:focus:ring-zinc-700 bg-white dark:bg-zinc-800 dark:text-zinc-100"
             />
             <button
               onClick={handleAddTask}
-              className="flex items-center gap-1 px-4 py-2 bg-zinc-900 text-white text-sm rounded-lg hover:bg-zinc-800 transition-colors"
+              className="flex items-center gap-1 px-4 py-2 bg-zinc-900 text-white text-sm rounded-lg hover:bg-zinc-800 transition-all btn-bounce"
             >
               <Plus className="w-4 h-4" />
               添加
@@ -358,8 +486,8 @@ function KanbanPage(): JSX.Element {
               return (
                 <div key={col.id} className="min-h-[200px]">
                   <div className={`flex items-center gap-2 mb-3 pb-2 border-b-2 ${col.color}`}>
-                    <h3 className="text-sm font-medium text-zinc-700">{col.label}</h3>
-                    <span className="text-xs text-zinc-400 bg-zinc-100 px-1.5 py-0.5 rounded">
+                    <h3 className="text-sm font-medium text-zinc-700 dark:text-zinc-300">{col.label}</h3>
+                    <span className="text-xs text-zinc-400 bg-zinc-100 dark:bg-zinc-800 px-1.5 py-0.5 rounded">
                       {columnTasks.length}
                     </span>
                   </div>
@@ -374,6 +502,7 @@ function KanbanPage(): JSX.Element {
                             key={task.id}
                             task={task}
                             onDelete={handleDelete}
+                            onSetDue={handleSetDue}
                           />
                         ))}
                         {columnTasks.length === 0 && (
@@ -392,14 +521,18 @@ function KanbanPage(): JSX.Element {
 
         {/* Draft Box Sidebar */}
         <div
-          className={`shrink-0 border-l border-zinc-200 bg-zinc-50/50 rounded-lg transition-all flex flex-col ${
+          className={`shrink-0 border-l border-zinc-200 dark:border-zinc-700 bg-zinc-50/50 dark:bg-zinc-900/50 rounded-lg transition-all flex flex-col ${
             draftOpen ? 'w-56' : 'w-10'
           }`}
         >
           {/* Toggle Button */}
           <button
-            onClick={() => setDraftOpen(!draftOpen)}
-            className="flex items-center justify-center h-10 border-b border-zinc-200 text-zinc-500 hover:text-zinc-700 hover:bg-zinc-100 transition-colors shrink-0 rounded-t-lg"
+            onClick={() => {
+              const next = !draftOpen
+              setDraftOpen(next)
+              localStorage.setItem('kanban:draftOpen', String(next))
+            }}
+            className="flex items-center justify-center h-10 border-b border-zinc-200 dark:border-zinc-700 text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors shrink-0 rounded-t-lg"
             aria-label={draftOpen ? '收起草稿箱' : '展开草稿箱'}
           >
             {draftOpen ? (
@@ -420,10 +553,10 @@ function KanbanPage(): JSX.Element {
 
           {draftOpen && (
             <div className="flex flex-col flex-1 overflow-hidden">
-              <div className="flex items-center gap-2 px-3 py-3 border-b border-zinc-200">
+              <div className="flex items-center gap-2 px-3 py-3 border-b border-zinc-200 dark:border-zinc-700">
                 <Archive className="w-4 h-4 text-zinc-400" />
-                <h3 className="text-sm font-medium text-zinc-700">草稿箱</h3>
-                <span className="text-xs text-zinc-400 bg-zinc-100 px-1.5 py-0.5 rounded">
+                <h3 className="text-sm font-medium text-zinc-700 dark:text-zinc-300">草稿箱</h3>
+                <span className="text-xs text-zinc-400 bg-zinc-100 dark:bg-zinc-800 px-1.5 py-0.5 rounded">
                   {draftTasks.length}
                 </span>
               </div>
@@ -441,7 +574,7 @@ function KanbanPage(): JSX.Element {
                     onChange={(e) => setDraftInput(e.target.value)}
                     onKeyDown={(e) => e.key === 'Enter' && handleAddDraft()}
                     placeholder="随手记一个..."
-                    className="flex-1 px-2 py-1.5 border border-zinc-200 rounded text-xs outline-none focus:border-zinc-400 bg-white"
+                    className="flex-1 px-2 py-1.5 border border-zinc-200 dark:border-zinc-600 rounded text-xs outline-none focus:border-zinc-400 bg-white dark:bg-zinc-800 dark:text-zinc-100"
                   />
                   <button
                     onClick={handleAddDraft}

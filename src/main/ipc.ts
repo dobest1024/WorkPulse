@@ -1,8 +1,14 @@
-import { ipcMain, safeStorage } from 'electron'
+import { ipcMain, safeStorage, dialog } from 'electron'
+import { writeFileSync } from 'fs'
 import {
   addWorkLog,
   getWorkLogs,
   getWorkLogsByDateRange,
+  searchWorkLogs,
+  getAllWorkLogs,
+  getStats,
+  getCategories,
+  updateWorkLogCategory,
   deleteWorkLog,
   saveReport,
   getReports,
@@ -32,8 +38,24 @@ export function registerIpcHandlers(): void {
     return getWorkLogsByDateRange(from, to)
   })
 
+  ipcMain.handle('worklog:search', (_event, keyword: string) => {
+    return searchWorkLogs(keyword)
+  })
+
+  ipcMain.handle('worklog:categories', () => {
+    return getCategories()
+  })
+
+  ipcMain.handle('worklog:setCategory', (_event, id: number, category: string) => {
+    updateWorkLogCategory(id, category)
+  })
+
   ipcMain.handle('worklog:delete', (_event, id: number) => {
     return deleteWorkLog(id)
+  })
+
+  ipcMain.handle('stats:get', (_event, days?: number) => {
+    return getStats(days)
   })
 
   // --- Reports ---
@@ -130,5 +152,61 @@ export function registerIpcHandlers(): void {
       return
     }
     deleteSetting(key)
+  })
+
+  // --- Export ---
+
+  ipcMain.handle('export:logs', async (_event, format: 'csv' | 'markdown') => {
+    const logs = getAllWorkLogs()
+    if (logs.length === 0) throw new Error('没有日志可导出')
+
+    const ext = format === 'csv' ? 'csv' : 'md'
+    const result = await dialog.showSaveDialog({
+      title: '导出工作日志',
+      defaultPath: `workpulse-logs.${ext}`,
+      filters: [
+        format === 'csv'
+          ? { name: 'CSV', extensions: ['csv'] }
+          : { name: 'Markdown', extensions: ['md'] }
+      ]
+    })
+
+    if (result.canceled || !result.filePath) return null
+
+    let content: string
+    if (format === 'csv') {
+      const header = '时间,内容\n'
+      const rows = logs.map((l) => `"${l.created_at}","${l.content.replace(/"/g, '""')}"`).join('\n')
+      content = header + rows
+    } else {
+      const grouped = new Map<string, typeof logs>()
+      for (const log of logs) {
+        const date = log.created_at.slice(0, 10)
+        const list = grouped.get(date) || []
+        list.push(log)
+        grouped.set(date, list)
+      }
+      const sections = Array.from(grouped.entries()).map(([date, dateLogs]) => {
+        const items = dateLogs.map((l) => `- ${l.created_at.slice(11, 16)} ${l.content}`).join('\n')
+        return `## ${date}\n\n${items}`
+      })
+      content = `# WorkPulse 工作日志\n\n${sections.join('\n\n')}\n`
+    }
+
+    writeFileSync(result.filePath, content, 'utf-8')
+    return result.filePath
+  })
+
+  ipcMain.handle('export:report', async (_event, reportContent: string, dateRange: string) => {
+    const result = await dialog.showSaveDialog({
+      title: '导出报告',
+      defaultPath: `workpulse-report-${dateRange}.md`,
+      filters: [{ name: 'Markdown', extensions: ['md'] }]
+    })
+
+    if (result.canceled || !result.filePath) return null
+
+    writeFileSync(result.filePath, reportContent, 'utf-8')
+    return result.filePath
   })
 }

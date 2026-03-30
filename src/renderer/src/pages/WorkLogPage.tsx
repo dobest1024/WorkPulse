@@ -1,20 +1,33 @@
 import { useEffect, useRef, useState } from 'react'
-import { Trash2, ClipboardEdit } from 'lucide-react'
+import { Trash2, ClipboardEdit, Search, X, Download, Undo2 } from 'lucide-react'
+import { useToast } from '../components/Toast'
 import { useWorkLogStore } from '../stores/worklogStore'
 import { formatDate, formatTime, groupLogsByDate } from '../lib/dateUtils'
 
 function WorkLogPage(): JSX.Element {
-  const { logs, fetchLogs, addLog, deleteLog } = useWorkLogStore()
+  const { logs, fetchLogs, loadMore, hasMore, addLog, deleteLog, undoDelete, lastDeleted, searchLogs, clearSearch, searchKeyword, loading } =
+    useWorkLogStore()
   const [input, setInput] = useState('')
+  const [search, setSearch] = useState('')
   const [shaking, setShaking] = useState(false)
   const [error, setError] = useState('')
   const [deletingId, setDeletingId] = useState<number | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
+  const searchTimerRef = useRef<ReturnType<typeof setTimeout>>()
+  const toast = useToast()
 
   useEffect(() => {
     fetchLogs()
     inputRef.current?.focus()
   }, [])
+
+  const parseCategory = (text: string): { content: string; category: string } => {
+    const match = text.match(/#(\S+)\s*/)
+    if (match) {
+      return { content: text.replace(match[0], '').trim(), category: match[1] }
+    }
+    return { content: text, category: '' }
+  }
 
   const handleSubmit = async (): Promise<void> => {
     const trimmed = input.trim()
@@ -29,7 +42,8 @@ function WorkLogPage(): JSX.Element {
     }
 
     try {
-      await addLog(trimmed)
+      const { content, category } = parseCategory(trimmed)
+      await addLog(content, category)
       setInput('')
     } catch {
       setError('保存失败，请重试')
@@ -44,9 +58,32 @@ function WorkLogPage(): JSX.Element {
     }
   }
 
+  const handleSearchChange = (value: string): void => {
+    setSearch(value)
+    clearTimeout(searchTimerRef.current)
+    if (!value.trim()) {
+      clearSearch()
+      return
+    }
+    searchTimerRef.current = setTimeout(() => {
+      searchLogs(value.trim())
+    }, 300)
+  }
+
+  const handleClearSearch = (): void => {
+    setSearch('')
+    clearSearch()
+  }
+
   const handleDelete = async (id: number): Promise<void> => {
     await deleteLog(id)
     setDeletingId(null)
+    toast.success('已删除')
+  }
+
+  const handleUndo = async (): Promise<void> => {
+    await undoDelete()
+    toast.success('已恢复')
   }
 
   const grouped = groupLogsByDate(logs)
@@ -54,7 +91,7 @@ function WorkLogPage(): JSX.Element {
   return (
     <div>
       {/* Input */}
-      <div className="mb-6">
+      <div className="mb-4">
         <div className="relative">
           <input
             ref={inputRef}
@@ -62,43 +99,116 @@ function WorkLogPage(): JSX.Element {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="今天干了什么？"
+            placeholder="今天干了什么？（#标签 自动分类）"
             aria-label="记录工作日志"
-            className={`w-full px-4 py-3 text-base border rounded-lg outline-none transition-all ${
-              shaking ? 'animate-shake border-red-400 ring-2 ring-red-200' : 'border-zinc-300 focus:border-zinc-500 focus:ring-2 focus:ring-zinc-200'
+            className={`w-full px-4 py-3 text-base border rounded-lg outline-none transition-all bg-white dark:bg-zinc-900 dark:text-zinc-100 ${
+              shaking
+                ? 'animate-shake border-red-400 ring-2 ring-red-200'
+                : 'border-zinc-300 dark:border-zinc-700 focus:border-zinc-500 focus:ring-2 focus:ring-zinc-200 dark:focus:ring-zinc-700'
             }`}
           />
         </div>
-        {error && (
-          <p className="mt-1 text-sm text-red-500">{error}</p>
-        )}
+        {error && <p className="mt-1 text-sm text-red-500">{error}</p>}
       </div>
+
+      {/* Search + Export */}
+      <div className="mb-4 flex gap-2">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" />
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => handleSearchChange(e.target.value)}
+            placeholder="搜索日志..."
+            className="w-full pl-9 pr-8 py-2 text-sm border border-zinc-200 dark:border-zinc-700 rounded-lg outline-none focus:border-zinc-400 focus:ring-1 focus:ring-zinc-200 dark:focus:ring-zinc-700 bg-white dark:bg-zinc-900 dark:text-zinc-100"
+          />
+          {search && (
+            <button
+              onClick={handleClearSearch}
+              className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 text-zinc-400 hover:text-zinc-600"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          )}
+        </div>
+        <div className="relative group">
+          <button className="flex items-center gap-1 px-3 py-2 text-sm border border-zinc-200 dark:border-zinc-700 rounded-lg text-zinc-500 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-all btn-bounce">
+            <Download className="w-4 h-4" />
+            导出
+          </button>
+          <div className="absolute right-0 top-full mt-1 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-10">
+            <button
+              onClick={async () => {
+                const path = await window.api.export.logs('csv')
+                if (path) toast.success('已导出 CSV')
+              }}
+              className="block w-full px-4 py-2 text-sm text-left text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700 rounded-t-lg whitespace-nowrap"
+            >
+              导出 CSV
+            </button>
+            <button
+              onClick={async () => {
+                const path = await window.api.export.logs('markdown')
+                if (path) toast.success('已导出 Markdown')
+              }}
+              className="block w-full px-4 py-2 text-sm text-left text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700 rounded-b-lg whitespace-nowrap"
+            >
+              导出 Markdown
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Search info */}
+      {searchKeyword && (
+        <div className="mb-3 text-sm text-zinc-500">
+          搜索 &quot;{searchKeyword}&quot; — 找到 {logs.length} 条记录
+          <button onClick={handleClearSearch} className="ml-2 text-blue-500 hover:underline">
+            清除
+          </button>
+        </div>
+      )}
 
       {/* Log list */}
       {logs.length === 0 ? (
-        <div className="text-center py-16">
-          <ClipboardEdit className="w-12 h-12 mx-auto text-zinc-300 mb-4" />
-          <p className="text-zinc-500 text-lg mb-1">开始记录你的第一条工作日志吧</p>
-          <p className="text-zinc-400 text-sm">输入你今天做了什么，按回车保存</p>
+        <div className="text-center py-16 animate-fade-in">
+          <ClipboardEdit className="w-12 h-12 mx-auto text-zinc-300 mb-4 animate-float" />
+          {searchKeyword ? (
+            <>
+              <p className="text-zinc-500 text-lg mb-1">没有找到匹配的日志</p>
+              <p className="text-zinc-400 text-sm">试试其他关键词</p>
+            </>
+          ) : (
+            <>
+              <p className="text-zinc-500 text-lg mb-1">开始记录你的第一条工作日志吧</p>
+              <p className="text-zinc-400 text-sm">输入你今天做了什么，按回车保存</p>
+            </>
+          )}
         </div>
       ) : (
+        <>
         <div role="list" className="space-y-6">
           {Array.from(grouped.entries()).map(([dateKey, dateLogs]) => (
             <div key={dateKey} role="group">
               <h3 className="text-sm font-medium text-zinc-400 mb-2">
                 {formatDate(dateKey + 'T00:00:00')}
               </h3>
-              <div className="space-y-1">
+              <div className="space-y-1 stagger-children">
                 {dateLogs.map((log) => (
                   <div
                     key={log.id}
-                    className="group flex items-center justify-between py-2 px-3 rounded-md hover:bg-zinc-50 animate-fade-in"
+                    className="group flex items-center justify-between py-2 px-3 rounded-md hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors"
                   >
-                    <span className="text-zinc-800 flex-1 mr-4">{log.content}</span>
+                    <div className="flex-1 mr-4 flex items-center gap-2">
+                      <span className="text-zinc-800 dark:text-zinc-200">{log.content}</span>
+                      {log.category && (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 whitespace-nowrap">
+                          {log.category}
+                        </span>
+                      )}
+                    </div>
                     <div className="flex items-center gap-2">
-                      <span className="text-xs text-zinc-400">
-                        {formatTime(log.created_at)}
-                      </span>
+                      <span className="text-xs text-zinc-400">{formatTime(log.created_at)}</span>
                       {deletingId === log.id ? (
                         <div className="flex items-center gap-1">
                           <button
@@ -129,6 +239,32 @@ function WorkLogPage(): JSX.Element {
               </div>
             </div>
           ))}
+        </div>
+        {hasMore && !searchKeyword && (
+          <div className="text-center py-4">
+            <button
+              onClick={loadMore}
+              disabled={loading}
+              className="text-sm text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200 disabled:opacity-50"
+            >
+              {loading ? '加载中...' : '加载更多'}
+            </button>
+          </div>
+        )}
+        </>
+      )}
+
+      {/* Undo bar */}
+      {lastDeleted && (
+        <div className="fixed bottom-4 left-1/2 z-40 flex items-center gap-3 px-4 py-2.5 bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 rounded-lg shadow-lg text-sm animate-undo-slide-up">
+          <span>已删除一条日志</span>
+          <button
+            onClick={handleUndo}
+            className="flex items-center gap-1 font-medium text-blue-300 dark:text-blue-600 hover:text-blue-200 dark:hover:text-blue-500"
+          >
+            <Undo2 className="w-3.5 h-3.5" />
+            撤销
+          </button>
         </div>
       )}
     </div>

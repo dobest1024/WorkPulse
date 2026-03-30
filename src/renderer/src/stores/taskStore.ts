@@ -10,6 +10,7 @@ interface Task {
   created_at: string
   updated_at: string
   completed_at: string | null
+  due_date: string | null
 }
 
 interface TaskStore {
@@ -17,7 +18,7 @@ interface TaskStore {
   loading: boolean
   fetchTasks: () => Promise<void>
   addTask: (title: string, description?: string, status?: 'todo' | 'draft') => Promise<Task>
-  updateTask: (id: number, updates: Partial<Pick<Task, 'title' | 'description' | 'status' | 'position'>>) => Promise<void>
+  updateTask: (id: number, updates: Partial<Pick<Task, 'title' | 'description' | 'status' | 'position' | 'due_date'>>) => Promise<void>
   deleteTask: (id: number) => Promise<void>
   completeTask: (id: number, logContent: string) => Promise<void>
   reorderTasks: (taskIds: number[], status: string) => Promise<void>

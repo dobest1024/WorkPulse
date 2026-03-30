@@ -10,7 +10,7 @@ import {
   ChevronDown,
   ChevronUp,
   Clock,
-  Trash2
+  Download
 } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import { getDateRange, type DatePreset } from '../lib/dateUtils'
@@ -131,7 +131,7 @@ function ReportPage(): JSX.Element {
     <div>
       {/* Viewing history report header */}
       {isViewingHistory && (
-        <div className="flex items-center gap-3 mb-4 pb-3 border-b border-zinc-200">
+        <div className="flex items-center gap-3 mb-4 pb-3 border-b border-zinc-200 dark:border-zinc-700">
           <button
             onClick={handleBackToNew}
             className="text-sm text-zinc-500 hover:text-zinc-700"
@@ -139,7 +139,7 @@ function ReportPage(): JSX.Element {
             &larr; 返回生成
           </button>
           <span className="text-sm text-zinc-400">|</span>
-          <span className="text-sm text-zinc-600">
+          <span className="text-sm text-zinc-600 dark:text-zinc-400">
             {viewingReport.date_from} 至 {viewingReport.date_to}
           </span>
           <span className="text-xs text-zinc-400">
@@ -159,8 +159,8 @@ function ReportPage(): JSX.Element {
                   onClick={() => applyPreset(p.value)}
                   className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
                     preset === p.value
-                      ? 'bg-zinc-900 text-white'
-                      : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200'
+                      ? 'bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900'
+                      : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-700'
                   }`}
                 >
                   {p.label}
@@ -172,14 +172,14 @@ function ReportPage(): JSX.Element {
                 type="date"
                 value={dateFrom}
                 onChange={(e) => setDateFrom(e.target.value)}
-                className="px-2 py-1 border border-zinc-300 rounded-md text-sm outline-none focus:border-zinc-500"
+                className="px-2 py-1 border border-zinc-300 dark:border-zinc-600 rounded-md text-sm outline-none focus:border-zinc-500 bg-white dark:bg-zinc-800 dark:text-zinc-100"
               />
               <span>至</span>
               <input
                 type="date"
                 value={dateTo}
                 onChange={(e) => setDateTo(e.target.value)}
-                className="px-2 py-1 border border-zinc-300 rounded-md text-sm outline-none focus:border-zinc-500"
+                className="px-2 py-1 border border-zinc-300 dark:border-zinc-600 rounded-md text-sm outline-none focus:border-zinc-500 bg-white dark:bg-zinc-800 dark:text-zinc-100"
               />
             </div>
           </div>
@@ -188,7 +188,7 @@ function ReportPage(): JSX.Element {
           <button
             onClick={handleGenerate}
             disabled={status === 'no_key' || status === 'generating'}
-            className="mb-6 px-6 py-2.5 bg-zinc-900 text-white text-sm font-medium rounded-lg hover:bg-zinc-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="mb-6 px-6 py-2.5 bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 text-sm font-medium rounded-lg hover:bg-zinc-800 dark:hover:bg-zinc-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             {status === 'generating' ? (
               <span className="flex items-center gap-2">
@@ -251,11 +251,11 @@ function ReportPage(): JSX.Element {
         <div>
           {/* Toggle bar */}
           <div className="flex items-center justify-between mb-2">
-            <div className="flex gap-1 bg-zinc-100 rounded-md p-0.5">
+            <div className="flex gap-1 bg-zinc-100 dark:bg-zinc-800 rounded-md p-0.5">
               <button
                 onClick={() => setEditing(false)}
                 className={`flex items-center gap-1 px-3 py-1 text-xs rounded transition-colors ${
-                  !editing ? 'bg-white text-zinc-900 shadow-sm' : 'text-zinc-500 hover:text-zinc-700'
+                  !editing ? 'bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 shadow-sm' : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300'
                 }`}
               >
                 <Eye className="w-3.5 h-3.5" />
@@ -264,7 +264,7 @@ function ReportPage(): JSX.Element {
               <button
                 onClick={() => setEditing(true)}
                 className={`flex items-center gap-1 px-3 py-1 text-xs rounded transition-colors ${
-                  editing ? 'bg-white text-zinc-900 shadow-sm' : 'text-zinc-500 hover:text-zinc-700'
+                  editing ? 'bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 shadow-sm' : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300'
                 }`}
               >
                 <Pencil className="w-3.5 h-3.5" />
@@ -278,11 +278,11 @@ function ReportPage(): JSX.Element {
             <textarea
               value={reportContent}
               onChange={(e) => setReportContent(e.target.value)}
-              className="w-full min-h-[300px] px-4 py-3 border border-zinc-200 rounded-lg bg-white text-sm font-mono leading-relaxed outline-none focus:border-zinc-400 focus:ring-2 focus:ring-zinc-200 resize-y mb-4"
+              className="w-full min-h-[300px] px-4 py-3 border border-zinc-200 dark:border-zinc-700 rounded-lg bg-white dark:bg-zinc-900 dark:text-zinc-100 text-sm font-mono leading-relaxed outline-none focus:border-zinc-400 focus:ring-2 focus:ring-zinc-200 dark:focus:ring-zinc-700 resize-y mb-4"
             />
           ) : (
-            <div className="border border-zinc-200 rounded-lg p-6 bg-white mb-4">
-              <div className="prose prose-zinc prose-sm max-w-none" role="article">
+            <div className="border border-zinc-200 dark:border-zinc-700 rounded-lg p-6 bg-white dark:bg-zinc-900 mb-4">
+              <div className="prose prose-zinc dark:prose-invert prose-sm max-w-none" role="article">
                 <ReactMarkdown>{reportContent}</ReactMarkdown>
               </div>
             </div>
@@ -306,10 +306,24 @@ function ReportPage(): JSX.Element {
                 </>
               )}
             </button>
+            <button
+              onClick={async () => {
+                const content = viewingReport ? viewingReport.content : reportContent
+                const range = viewingReport
+                  ? `${viewingReport.date_from}-${viewingReport.date_to}`
+                  : `${dateFrom}-${dateTo}`
+                const path = await window.api.export.report(content, range)
+                if (path) toast.success('报告已导出')
+              }}
+              className="flex items-center gap-2 px-4 py-2 border border-zinc-300 dark:border-zinc-600 text-zinc-600 dark:text-zinc-400 text-sm rounded-md hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors"
+            >
+              <Download className="w-4 h-4" />
+              导出
+            </button>
             {!isViewingHistory && (
               <button
                 onClick={handleGenerate}
-                className="flex items-center gap-2 px-4 py-2 border border-zinc-300 text-zinc-600 text-sm rounded-md hover:bg-zinc-50 transition-colors"
+                className="flex items-center gap-2 px-4 py-2 border border-zinc-300 dark:border-zinc-600 text-zinc-600 dark:text-zinc-400 text-sm rounded-md hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors"
               >
                 <RefreshCw className="w-4 h-4" />
                 重新生成
@@ -329,7 +343,7 @@ function ReportPage(): JSX.Element {
 
       {/* Report History */}
       {!isViewingHistory && history.length > 0 && (
-        <div className="mt-8 border-t border-zinc-200 pt-6">
+        <div className="mt-8 border-t border-zinc-200 dark:border-zinc-700 pt-6">
           <button
             onClick={() => setHistoryOpen(!historyOpen)}
             className="flex items-center gap-2 text-sm font-medium text-zinc-700 mb-4 hover:text-zinc-900"
@@ -352,12 +366,12 @@ function ReportPage(): JSX.Element {
                 <button
                   key={report.id}
                   onClick={() => handleViewReport(report)}
-                  className="w-full text-left flex items-center justify-between px-4 py-3 bg-white border border-zinc-200 rounded-lg hover:border-zinc-300 hover:shadow-sm transition-all group"
+                  className="w-full text-left flex items-center justify-between px-4 py-3 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg hover:border-zinc-300 dark:hover:border-zinc-600 hover:shadow-sm transition-all group"
                 >
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
                       <FileText className="w-4 h-4 text-zinc-400 shrink-0" />
-                      <span className="text-sm text-zinc-700">
+                      <span className="text-sm text-zinc-700 dark:text-zinc-300">
                         {report.date_from} 至 {report.date_to}
                       </span>
                     </div>

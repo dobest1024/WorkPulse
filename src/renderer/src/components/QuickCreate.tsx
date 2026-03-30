@@ -59,21 +59,21 @@ export function QuickCreate({ initialMode, onClose }: Props): JSX.Element {
       onClick={onClose}
     >
       {/* Backdrop */}
-      <div className="absolute inset-0 bg-black/20" />
+      <div className="absolute inset-0 bg-black/20 animate-fade-in" />
 
       {/* Panel */}
       <div
-        className="relative w-full max-w-lg mx-4 bg-white rounded-xl shadow-2xl border border-zinc-200 overflow-hidden animate-fade-in"
+        className="relative w-full max-w-lg mx-4 bg-white dark:bg-zinc-900 rounded-xl shadow-2xl border border-zinc-200 dark:border-zinc-700 overflow-hidden animate-slide-down"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Mode toggle */}
-        <div className="flex border-b border-zinc-100">
+        <div className="flex border-b border-zinc-100 dark:border-zinc-800">
           <button
             onClick={() => { setMode('log'); setValue('') }}
             className={`flex items-center gap-2 px-4 py-3 text-sm flex-1 transition-colors ${
               mode === 'log'
-                ? 'text-zinc-900 bg-zinc-50 border-b-2 border-zinc-900'
-                : 'text-zinc-400 hover:text-zinc-600'
+                ? 'text-zinc-900 dark:text-zinc-100 bg-zinc-50 dark:bg-zinc-800 border-b-2 border-zinc-900 dark:border-zinc-100'
+                : 'text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300'
             }`}
           >
             <ClipboardList className="w-4 h-4" />
@@ -83,8 +83,8 @@ export function QuickCreate({ initialMode, onClose }: Props): JSX.Element {
             onClick={() => { setMode('task'); setValue('') }}
             className={`flex items-center gap-2 px-4 py-3 text-sm flex-1 transition-colors ${
               mode === 'task'
-                ? 'text-zinc-900 bg-zinc-50 border-b-2 border-zinc-900'
-                : 'text-zinc-400 hover:text-zinc-600'
+                ? 'text-zinc-900 dark:text-zinc-100 bg-zinc-50 dark:bg-zinc-800 border-b-2 border-zinc-900 dark:border-zinc-100'
+                : 'text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300'
             }`}
           >
             <Columns3 className="w-4 h-4" />
@@ -102,7 +102,7 @@ export function QuickCreate({ initialMode, onClose }: Props): JSX.Element {
             onKeyDown={handleKeyDown}
             placeholder={mode === 'log' ? '今天干了什么？' : '任务名称...'}
             disabled={submitting}
-            className="w-full px-3 py-2.5 text-base border border-zinc-300 rounded-lg outline-none focus:border-zinc-500 focus:ring-2 focus:ring-zinc-200 disabled:opacity-50"
+            className="w-full px-3 py-2.5 text-base border border-zinc-300 dark:border-zinc-600 rounded-lg outline-none focus:border-zinc-500 focus:ring-2 focus:ring-zinc-200 dark:focus:ring-zinc-700 bg-white dark:bg-zinc-800 dark:text-zinc-100 disabled:opacity-50"
           />
           <div className="flex items-center justify-between mt-3">
             <span className="text-xs text-zinc-400">
@@ -111,7 +111,7 @@ export function QuickCreate({ initialMode, onClose }: Props): JSX.Element {
             <button
               onClick={handleSubmit}
               disabled={!value.trim() || submitting}
-              className="px-4 py-1.5 bg-zinc-900 text-white text-sm rounded-md hover:bg-zinc-800 disabled:opacity-40 transition-colors"
+              className="px-4 py-1.5 bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 text-sm rounded-md hover:bg-zinc-800 dark:hover:bg-zinc-200 disabled:opacity-40 transition-all btn-bounce"
             >
               {mode === 'log' ? '记录' : '添加'}
             </button>

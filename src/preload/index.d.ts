@@ -27,6 +27,7 @@ interface Task {
   created_at: string
   updated_at: string
   completed_at: string | null
+  due_date: string | null
 }
 
 type QuickCreateType = 'log' | 'task'
@@ -40,7 +41,7 @@ interface API {
   task: {
     add: (title: string, description?: string, status?: 'todo' | 'draft') => Promise<Task>
     list: () => Promise<Task[]>
-    update: (id: number, updates: Partial<Pick<Task, 'title' | 'description' | 'status' | 'position'>>) => Promise<Task | null>
+    update: (id: number, updates: Partial<Pick<Task, 'title' | 'description' | 'status' | 'position' | 'due_date'>>) => Promise<Task | null>
     delete: (id: number) => Promise<boolean>
     reorder: (taskIds: number[], status: string) => Promise<void>
     complete: (id: number, logContent: string) => Promise<Task | null>
@@ -49,7 +50,19 @@ interface API {
     add: (content: string, category?: string) => Promise<WorkLog>
     list: (limit?: number, offset?: number) => Promise<WorkLog[]>
     byDateRange: (from: string, to: string) => Promise<WorkLog[]>
+    search: (keyword: string) => Promise<WorkLog[]>
+    categories: () => Promise<string[]>
+    setCategory: (id: number, category: string) => Promise<void>
     delete: (id: number) => Promise<boolean>
+  }
+  stats: {
+    get: (days?: number) => Promise<{
+      daily: { date: string; log_count: number; task_completed: number }[]
+      totalLogs: number
+      totalTasksDone: number
+      totalTasksActive: number
+      streak: number
+    }>
   }
   report: {
     generate: (dateFrom: string, dateTo: string) => Promise<Report>
@@ -62,6 +75,10 @@ interface API {
   }
   shortcut: {
     update: (key: string, value: string) => Promise<boolean>
+  }
+  export: {
+    logs: (format: 'csv' | 'markdown') => Promise<string | null>
+    report: (content: string, dateRange: string) => Promise<string | null>
   }
 }
 
