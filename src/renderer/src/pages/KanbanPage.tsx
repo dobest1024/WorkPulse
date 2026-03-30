@@ -19,7 +19,8 @@ import {
   arrayMove
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { Plus, Trash2, GripVertical, Archive, ChevronRight, ChevronLeft, Calendar } from 'lucide-react'
+import { restrictToWindowEdges } from '@dnd-kit/modifiers'
+import { Plus, Trash2, GripVertical, Archive, ChevronRight, ChevronLeft, Calendar, Pencil, Check, X } from 'lucide-react'
 import { useTaskStore } from '../stores/taskStore'
 import { useToast } from '../components/Toast'
 
@@ -135,15 +136,21 @@ function DatePickerPortal({
 function SortableTaskCard({
   task,
   onDelete,
-  onSetDue
+  onSetDue,
+  onUpdate
 }: {
   task: Task
   onDelete: (id: number) => void
   onSetDue?: (id: number, date: string | null) => void
+  onUpdate?: (id: number, updates: { title?: string; description?: string }) => void
 }): JSX.Element {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: task.id })
   const [pickerRect, setPickerRect] = useState<DOMRect | null>(null)
+  const [editing, setEditing] = useState(false)
+  const [editTitle, setEditTitle] = useState(task.title)
+  const [editDesc, setEditDesc] = useState(task.description)
+  const titleInputRef = useRef<HTMLInputElement>(null)
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -157,6 +164,42 @@ function SortableTaskCard({
     : dueStatus === 'soon'
       ? 'text-amber-500'
       : 'text-zinc-400'
+
+  const canEdit = task.status !== 'done' && onUpdate
+
+  const startEdit = useCallback(() => {
+    if (!canEdit) return
+    setEditTitle(task.title)
+    setEditDesc(task.description)
+    setEditing(true)
+    requestAnimationFrame(() => titleInputRef.current?.focus())
+  }, [canEdit, task.title, task.description])
+
+  const saveEdit = useCallback(() => {
+    const trimmedTitle = editTitle.trim()
+    if (!trimmedTitle) return // don't save empty title
+    const changes: { title?: string; description?: string } = {}
+    if (trimmedTitle !== task.title) changes.title = trimmedTitle
+    if (editDesc.trim() !== task.description) changes.description = editDesc.trim()
+    if (Object.keys(changes).length > 0) {
+      onUpdate?.(task.id, changes)
+    }
+    setEditing(false)
+  }, [editTitle, editDesc, task, onUpdate])
+
+  const cancelEdit = useCallback(() => {
+    setEditing(false)
+    setEditTitle(task.title)
+    setEditDesc(task.description)
+  }, [task.title, task.description])
+
+  const handleEditKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+      saveEdit()
+    } else if (e.key === 'Escape') {
+      cancelEdit()
+    }
+  }, [saveEdit, cancelEdit])
 
   const openPicker = useCallback((e: React.MouseEvent) => {
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
@@ -183,11 +226,54 @@ function SortableTaskCard({
         <GripVertical className="w-4 h-4" />
       </button>
       <div className="flex-1 min-w-0">
-        <p className="text-sm text-zinc-800 dark:text-zinc-200 break-words">{task.title}</p>
-        {task.description && (
-          <p className="text-xs text-zinc-400 mt-1 break-words">{task.description}</p>
+        {editing ? (
+          <div className="space-y-1.5" onKeyDown={handleEditKeyDown}>
+            <input
+              ref={titleInputRef}
+              type="text"
+              value={editTitle}
+              onChange={(e) => setEditTitle(e.target.value)}
+              className="w-full px-2 py-1 text-sm border border-zinc-300 dark:border-zinc-600 rounded outline-none focus:border-blue-400 bg-white dark:bg-zinc-700 dark:text-zinc-100"
+              placeholder="任务标题"
+            />
+            <textarea
+              value={editDesc}
+              onChange={(e) => setEditDesc(e.target.value)}
+              className="w-full px-2 py-1 text-xs border border-zinc-300 dark:border-zinc-600 rounded outline-none focus:border-blue-400 bg-white dark:bg-zinc-700 dark:text-zinc-100 resize-none"
+              placeholder="添加描述...（可选）"
+              rows={2}
+            />
+            <div className="flex items-center gap-1">
+              <button
+                onClick={saveEdit}
+                className="p-1 text-green-500 hover:text-green-600 transition-colors"
+                title="保存 (⌘+Enter)"
+              >
+                <Check className="w-3.5 h-3.5" />
+              </button>
+              <button
+                onClick={cancelEdit}
+                className="p-1 text-zinc-400 hover:text-zinc-600 transition-colors"
+                title="取消 (Esc)"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          </div>
+        ) : (
+          <>
+            <p
+              className={`text-sm text-zinc-800 dark:text-zinc-200 break-words ${canEdit ? 'cursor-pointer' : ''}`}
+              onDoubleClick={startEdit}
+            >
+              {task.title}
+            </p>
+            {task.description && (
+              <p className="text-xs text-zinc-400 mt-1 break-words">{task.description}</p>
+            )}
+          </>
         )}
-        {onSetDue && (
+        {!editing && onSetDue && (
           <div className="flex items-center gap-2 mt-1">
             {task.due_date ? (
               <button
@@ -218,13 +304,26 @@ function SortableTaskCard({
           </div>
         )}
       </div>
-      <button
-        onClick={() => onDelete(task.id)}
-        className="opacity-0 group-hover:opacity-100 p-1 text-zinc-300 hover:text-red-500 transition-all shrink-0"
-        aria-label="删除任务"
-      >
-        <Trash2 className="w-3.5 h-3.5" />
-      </button>
+      {!editing && (
+        <div className="flex items-center gap-0.5 shrink-0">
+          {canEdit && (
+            <button
+              onClick={startEdit}
+              className="opacity-0 group-hover:opacity-100 p-1 text-zinc-300 hover:text-blue-500 transition-all"
+              aria-label="编辑任务"
+            >
+              <Pencil className="w-3.5 h-3.5" />
+            </button>
+          )}
+          <button
+            onClick={() => onDelete(task.id)}
+            className="opacity-0 group-hover:opacity-100 p-1 text-zinc-300 hover:text-red-500 transition-all"
+            aria-label="删除任务"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
     </div>
   )
 }
@@ -305,6 +404,8 @@ function KanbanPage(): JSX.Element {
     useTaskStore()
   const toast = useToast()
   const [newTaskTitle, setNewTaskTitle] = useState('')
+  const [newTaskDesc, setNewTaskDesc] = useState('')
+  const [showDescInput, setShowDescInput] = useState(false)
   const [draftInput, setDraftInput] = useState('')
   const [activeTask, setActiveTask] = useState<Task | null>(null)
   const [pendingComplete, setPendingComplete] = useState<Task | null>(null)
@@ -336,8 +437,10 @@ function KanbanPage(): JSX.Element {
 
   const handleAddTask = async (): Promise<void> => {
     if (!newTaskTitle.trim()) return
-    await addTask(newTaskTitle.trim())
+    await addTask(newTaskTitle.trim(), newTaskDesc.trim() || undefined)
     setNewTaskTitle('')
+    setNewTaskDesc('')
+    setShowDescInput(false)
   }
 
   const handleAddDraft = async (): Promise<void> => {
@@ -443,6 +546,10 @@ function KanbanPage(): JSX.Element {
     await updateTask(id, { due_date: date })
   }
 
+  const handleUpdate = async (id: number, updates: { title?: string; description?: string }): Promise<void> => {
+    await updateTask(id, updates)
+  }
+
   const handleDelete = async (id: number): Promise<void> => {
     await deleteTask(id)
   }
@@ -453,30 +560,44 @@ function KanbanPage(): JSX.Element {
     <DndContext
       sensors={sensors}
       collisionDetection={closestCorners}
+      modifiers={[restrictToWindowEdges]}
       onDragStart={handleDragStart}
       onDragOver={handleDragOver}
       onDragEnd={handleDragEnd}
     >
-      <div className="flex gap-4">
+      <div className="flex gap-4 overflow-hidden">
         {/* Main Board Area */}
         <div className="flex-1 min-w-0">
           {/* Add task */}
-          <div className="flex gap-2 mb-6">
-            <input
-              type="text"
-              value={newTaskTitle}
-              onChange={(e) => setNewTaskTitle(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleAddTask()}
-              placeholder="添加新任务..."
-              className="flex-1 px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg text-sm outline-none focus:border-zinc-500 focus:ring-2 focus:ring-zinc-200 dark:focus:ring-zinc-700 bg-white dark:bg-zinc-800 dark:text-zinc-100"
-            />
-            <button
-              onClick={handleAddTask}
-              className="flex items-center gap-1 px-4 py-2 bg-zinc-900 text-white text-sm rounded-lg hover:bg-zinc-800 transition-all btn-bounce"
-            >
-              <Plus className="w-4 h-4" />
-              添加
-            </button>
+          <div className="mb-6">
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={newTaskTitle}
+                onChange={(e) => setNewTaskTitle(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && handleAddTask()}
+                onFocus={() => setShowDescInput(true)}
+                placeholder="添加新任务..."
+                className="flex-1 px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg text-sm outline-none focus:border-zinc-500 focus:ring-2 focus:ring-zinc-200 dark:focus:ring-zinc-700 bg-white dark:bg-zinc-800 dark:text-zinc-100"
+              />
+              <button
+                onClick={handleAddTask}
+                className="flex items-center gap-1 px-4 py-2 bg-zinc-900 text-white text-sm rounded-lg hover:bg-zinc-800 transition-all btn-bounce"
+              >
+                <Plus className="w-4 h-4" />
+                添加
+              </button>
+            </div>
+            {showDescInput && (
+              <input
+                type="text"
+                value={newTaskDesc}
+                onChange={(e) => setNewTaskDesc(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleAddTask()}
+                placeholder="添加描述...（可选，Enter 保存）"
+                className="mt-2 w-full px-3 py-1.5 border border-zinc-200 dark:border-zinc-700 rounded-lg text-xs outline-none focus:border-zinc-400 focus:ring-1 focus:ring-zinc-200 dark:focus:ring-zinc-700 bg-white dark:bg-zinc-800 dark:text-zinc-100 animate-slide-up"
+              />
+            )}
           </div>
 
           {/* Board */}
@@ -503,6 +624,7 @@ function KanbanPage(): JSX.Element {
                             task={task}
                             onDelete={handleDelete}
                             onSetDue={handleSetDue}
+                            onUpdate={handleUpdate}
                           />
                         ))}
                         {columnTasks.length === 0 && (
@@ -597,6 +719,7 @@ function KanbanPage(): JSX.Element {
                         key={task.id}
                         task={task}
                         onDelete={handleDelete}
+                        onUpdate={handleUpdate}
                       />
                     ))}
                     {draftTasks.length === 0 && (

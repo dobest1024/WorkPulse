@@ -6,3 +6,5 @@ dist/
 .env
 .env.*
 .claude/
+docs/
+.claude/
