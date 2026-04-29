@@ -1,5 +1,6 @@
 import { app, BrowserWindow, shell, Menu, Tray, nativeImage, globalShortcut, ipcMain } from 'electron'
 import { join } from 'path'
+import { readFileSync } from 'fs'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import { initDatabase, getSetting } from './db'
 import { registerIpcHandlers } from './ipc'
@@ -154,11 +155,21 @@ function createTray(): void {
     ? join(__dirname, '../../resources/tray-icon.png')
     : join(process.resourcesPath, 'tray-icon.png')
   let icon = nativeImage.createFromPath(iconPath)
+  if (process.platform === 'darwin') {
+    try {
+      icon = nativeImage.createFromBuffer(readFileSync(iconPath), { scaleFactor: 2 })
+    } catch {
+      // Fall back to the regular path-loaded image below.
+    }
+  }
   if (icon.isEmpty()) {
     // Fallback: create a minimal 1x1 white pixel template image
     icon = nativeImage.createFromDataURL(
       'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAGXRFWHRTb2Z0d2FyZQBBZG9iZSBJbWFnZVJlYWR5ccllPAAAABdJREFUeNpj/P//PwMlgHHUgFEDAAIMAAABBgABsp3F1QAAAABJRU5ErkJggg=='
     )
+  }
+  if (process.platform !== 'darwin') {
+    icon = icon.resize({ width: 18, height: 18 })
   }
   icon.setTemplateImage(true)
   tray = new Tray(icon)
