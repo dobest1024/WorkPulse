@@ -6,15 +6,15 @@ Built for individual contributors who want a frictionless way to remember what t
 
 ## Features
 
-**Work Log** — Type what you just did, press Enter. That's it. Supports `#tag` for auto-categorization, full-text search, and CSV/Markdown export.
+**Work Log** — Type what you just did, press Enter. That's it. Supports `#tag` for auto-categorization, full-text search, undo delete, and CSV/Markdown export with categories.
 
 **Kanban Board** — Drag tasks between Todo → In Progress → Done. Includes a draft box for "maybe later" ideas, due date tracking, and inline editing. Completing a task auto-generates a work log entry.
 
-**AI Reports** — Select a date range, get a structured summary of your work. Powered by Claude API. Supports weekly/monthly/quarterly reports with history.
+**AI Reports** — Select a date range, get a structured summary of your work. Reports use both work logs and task context, support OpenAI/Anthropic-compatible providers, and can be previewed, edited, saved to history, copied, or exported.
 
 **Statistics** — 14-day activity bar chart, GitHub-style heat map, streak counter, and task completion metrics.
 
-**Quick Capture** — Global shortcuts (`Ctrl+Shift+L` for logs, `Ctrl+Shift+T` for tasks) let you record without switching windows. Also accessible from the menu bar tray icon.
+**Quick Capture** — Configurable global shortcuts (`Ctrl+Shift+L` for logs, `Ctrl+Shift+T` for tasks by default) let you record without switching windows. Quick logs also support `#tag` parsing and are accessible from the menu bar tray icon.
 
 **Dark Mode** — System, light, or dark theme with full UI coverage.
 
@@ -57,9 +57,9 @@ npm run dist:linux  # Linux (AppImage)
 | `Ctrl+Shift+L` | Quick log (global) |
 | `Ctrl+Shift+T` | Quick task (global) |
 
-## Data
+## Data & Security
 
-All data is stored locally in SQLite at your system's app data directory. Automatic daily backups are created. No cloud, no account, no telemetry.
+All data is stored locally in SQLite at your system's app data directory. Automatic daily backups are created. API keys are stored through Electron secure storage when available, with migration cleanup for legacy plaintext keys. No cloud, no account, no telemetry.
 
 ## License
 

@@ -7,6 +7,13 @@ let db: Database.Database
 
 const DB_NAME = 'workpulse.db'
 
+function formatLocalDate(date: Date): string {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
 function getDbPath(): string {
   const userDataPath = app.getPath('userData')
   return join(userDataPath, DB_NAME)
@@ -18,7 +25,7 @@ function getBackupPath(): string {
   if (!existsSync(backupDir)) {
     mkdirSync(backupDir, { recursive: true })
   }
-  const date = new Date().toISOString().slice(0, 10)
+  const date = formatLocalDate(new Date())
   return join(backupDir, `workpulse-${date}.db`)
 }
 
@@ -62,7 +69,8 @@ function createTables(): void {
       position INTEGER NOT NULL DEFAULT 0,
       created_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
       updated_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
-      completed_at TEXT
+      completed_at TEXT,
+      due_date TEXT DEFAULT NULL
     );
 
     CREATE TABLE IF NOT EXISTS reports (
@@ -86,16 +94,13 @@ function createTables(): void {
 }
 
 function runMigrations(): void {
-  // Migration: add due_date column
   const colInfo = db.prepare("PRAGMA table_info('tasks')").all() as { name: string }[]
-  if (!colInfo.some((c) => c.name === 'due_date')) {
-    db.exec("ALTER TABLE tasks ADD COLUMN due_date TEXT DEFAULT NULL")
-  }
+  const hasDueDate = colInfo.some((c) => c.name === 'due_date')
 
-  // Migration: add 'draft' to tasks status CHECK constraint
   // SQLite can't ALTER CHECK constraints, so recreate table if needed
   const tableInfo = db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='tasks'").get() as { sql: string } | undefined
   if (tableInfo?.sql && !tableInfo.sql.includes("'draft'")) {
+    const dueDateSelect = hasDueDate ? 'due_date' : 'NULL as due_date'
     db.exec(`
       CREATE TABLE IF NOT EXISTS tasks_new (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -106,13 +111,42 @@ function runMigrations(): void {
         position INTEGER NOT NULL DEFAULT 0,
         created_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
         updated_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
-        completed_at TEXT
+        completed_at TEXT,
+        due_date TEXT DEFAULT NULL
       );
-      INSERT INTO tasks_new SELECT * FROM tasks;
+      INSERT INTO tasks_new (
+        id,
+        title,
+        description,
+        status,
+        board_column,
+        position,
+        created_at,
+        updated_at,
+        completed_at,
+        due_date
+      )
+      SELECT
+        id,
+        title,
+        description,
+        status,
+        board_column,
+        position,
+        created_at,
+        updated_at,
+        completed_at,
+        ${dueDateSelect}
+      FROM tasks;
       DROP TABLE tasks;
       ALTER TABLE tasks_new RENAME TO tasks;
       CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);
     `)
+    return
+  }
+
+  if (!hasDueDate) {
+    db.exec("ALTER TABLE tasks ADD COLUMN due_date TEXT DEFAULT NULL")
   }
 }
 
@@ -146,11 +180,30 @@ export interface WorkLog {
   task_id: number | null
 }
 
-export function addWorkLog(content: string, category = ''): WorkLog {
+function resolveWorkLogTaskId(taskId: number | null): number | null {
+  if (taskId === null) return null
+  const exists = db.prepare('SELECT 1 FROM tasks WHERE id = ?').get(taskId)
+  return exists ? taskId : null
+}
+
+export function addWorkLog(
+  content: string,
+  category = '',
+  taskId: number | null = null,
+  createdAt?: string
+): WorkLog {
+  const resolvedTaskId = resolveWorkLogTaskId(taskId)
+  if (createdAt) {
+    const stmt = db.prepare(
+      'INSERT INTO work_logs (content, category, task_id, created_at) VALUES (?, ?, ?, ?) RETURNING *'
+    )
+    return stmt.get(content, category, resolvedTaskId, createdAt) as WorkLog
+  }
+
   const stmt = db.prepare(
-    'INSERT INTO work_logs (content, category) VALUES (?, ?) RETURNING *'
+    'INSERT INTO work_logs (content, category, task_id) VALUES (?, ?, ?) RETURNING *'
   )
-  return stmt.get(content, category) as WorkLog
+  return stmt.get(content, category, resolvedTaskId) as WorkLog
 }
 
 export function getWorkLogs(limit = 200, offset = 0): WorkLog[] {
@@ -180,6 +233,10 @@ export function deleteWorkLog(id: number): boolean {
   return result.changes > 0
 }
 
+export function restoreWorkLog(log: Pick<WorkLog, 'content' | 'category' | 'created_at' | 'task_id'>): WorkLog {
+  return addWorkLog(log.content, log.category, log.task_id, log.created_at)
+}
+
 // --- Reports CRUD ---
 
 export interface Report {
@@ -206,6 +263,11 @@ export function saveReport(
 export function getReports(limit = 50): Report[] {
   const stmt = db.prepare('SELECT * FROM reports ORDER BY generated_at DESC LIMIT ?')
   return stmt.all(limit) as Report[]
+}
+
+export function updateReportContent(id: number, content: string): Report | null {
+  const stmt = db.prepare('UPDATE reports SET content = ? WHERE id = ? RETURNING *')
+  return stmt.get(content, id) as Report | null
 }
 
 // --- Tasks CRUD ---
@@ -287,10 +349,23 @@ export function deleteTask(id: number): boolean {
 }
 
 export function reorderTasks(taskIds: number[], status: string): void {
-  const stmt = db.prepare('UPDATE tasks SET position = ?, board_column = ?, status = ? WHERE id = ?')
+  const stmt = db.prepare(`
+    UPDATE tasks
+    SET
+      position = ?,
+      board_column = ?,
+      status = ?,
+      updated_at = datetime('now', 'localtime'),
+      completed_at = CASE
+        WHEN ? = 'done' AND completed_at IS NULL THEN datetime('now', 'localtime')
+        WHEN ? != 'done' THEN NULL
+        ELSE completed_at
+      END
+    WHERE id = ?
+  `)
   const tx = db.transaction((ids: number[]) => {
     ids.forEach((id, index) => {
-      stmt.run(index, status, status, id)
+      stmt.run(index, status, status, status, status, id)
     })
   })
   tx(taskIds)
@@ -332,11 +407,11 @@ export function getStats(days = 30): {
     d.task_completed = doneMap.get(d.date) || 0
   }
   // Add days that only have completed tasks but no logs
-  for (const [date, cnt] of doneMap) {
+  doneMap.forEach((cnt, date) => {
     if (!daily.find((d) => d.date === date)) {
       daily.push({ date, log_count: 0, task_completed: cnt })
     }
-  }
+  })
   daily.sort((a, b) => a.date.localeCompare(b.date))
 
   const totalLogs = (db.prepare('SELECT COUNT(*) as c FROM work_logs').get() as { c: number }).c
@@ -351,7 +426,7 @@ export function getStats(days = 30): {
   for (let i = 0; i <= days; i++) {
     const d = new Date(today)
     d.setDate(d.getDate() - i)
-    const dateStr = d.toISOString().slice(0, 10)
+    const dateStr = formatLocalDate(d)
     if (logDates.has(dateStr)) {
       streak++
     } else if (i === 0) {

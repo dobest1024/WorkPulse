@@ -1,8 +1,17 @@
 import { getSetting } from './db'
+import { getStoredApiKey } from './secureSettings'
 
 interface Message {
   role: 'system' | 'user' | 'assistant'
   content: string
+}
+
+interface ReportTaskContext {
+  title: string
+  description?: string
+  status: 'todo' | 'in_progress' | 'done' | 'draft'
+  due_date?: string | null
+  completed_at?: string | null
 }
 
 const DEFAULT_SYSTEM_PROMPT = `你是一个专业的工作报告助手。请根据用户提供的工作日志，生成一份结构化的工作总结报告。
@@ -30,9 +39,10 @@ const DEFAULT_REPORT_TEMPLATE = `## 工作总结 ({{dateFrom}} - {{dateTo}})
 export async function generateReport(
   logs: { content: string; created_at: string }[],
   dateFrom: string,
-  dateTo: string
+  dateTo: string,
+  tasks: ReportTaskContext[] = []
 ): Promise<string> {
-  const apiKey = getSetting('api_key')
+  const apiKey = getStoredApiKey()
   if (!apiKey) {
     throw new Error('API Key 未配置')
   }
@@ -53,7 +63,8 @@ export async function generateReport(
     .map((log) => `[${log.created_at}] ${log.content}`)
     .join('\n')
 
-  const userMessage = `以下是我的工作日志，请生成工作总结报告：\n\n${logsText}\n\n请参考以下格式模板输出：\n${templateHint}`
+  const taskContext = formatTaskContext(tasks)
+  const userMessage = `以下是我的工作日志，请生成工作总结报告：\n\n${logsText}${taskContext ? `\n\n相关任务上下文：\n${taskContext}` : ''}\n\n请参考以下格式模板输出：\n${templateHint}`
 
   const messages: Message[] = [
     { role: 'system', content: systemPrompt },
@@ -68,6 +79,30 @@ export async function generateReport(
 
 function replaceVars(template: string, vars: Record<string, string>): string {
   return template.replace(/\{\{(\w+)\}\}/g, (_, key) => vars[key] || '')
+}
+
+function formatTaskContext(tasks: ReportTaskContext[]): string {
+  if (tasks.length === 0) return ''
+
+  const statusLabel: Record<ReportTaskContext['status'], string> = {
+    todo: '待办',
+    in_progress: '进行中',
+    done: '已完成',
+    draft: '草稿'
+  }
+
+  return tasks
+    .slice(0, 100)
+    .map((task) => {
+      const meta = [
+        statusLabel[task.status],
+        task.due_date ? `截止 ${task.due_date}` : '',
+        task.completed_at ? `完成于 ${task.completed_at}` : ''
+      ].filter(Boolean).join('，')
+      const description = task.description?.trim() ? ` — ${task.description.trim()}` : ''
+      return `- [${meta}] ${task.title}${description}`
+    })
+    .join('\n')
 }
 
 async function callOpenAI(

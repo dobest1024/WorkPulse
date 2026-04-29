@@ -90,6 +90,8 @@ const DEFAULT_REPORT_TEMPLATE = `## 工作总结 ({{dateFrom}} - {{dateTo}})
 （基于当前工作的合理推断）`
 
 function SettingsPage({ onBack }: Props): JSX.Element {
+  const isMac = navigator.userAgent.includes('Mac')
+  const modifierLabel = isMac ? 'Cmd' : 'Ctrl'
   const [apiKey, setApiKey] = useState('')
   const [hasKey, setHasKey] = useState(false)
   const [showKey, setShowKey] = useState(false)
@@ -141,9 +143,13 @@ function SettingsPage({ onBack }: Props): JSX.Element {
     value: string,
     setter: (v: string) => void
   ): Promise<void> => {
+    const updated = await window.api.shortcut.update(key, value)
+    if (!updated) {
+      toast.error('快捷键无效或已被系统占用')
+      return
+    }
+
     setter(value)
-    await window.api.settings.set(key, value)
-    await window.api.shortcut.update(key, value)
     toast.success('快捷键已更新')
   }
 
@@ -465,8 +471,8 @@ function SettingsPage({ onBack }: Props): JSX.Element {
               <p className="text-xs font-medium text-zinc-600 mb-2">其他快捷键（不可修改）</p>
               <div className="space-y-1">
                 {[
-                  ['Cmd+1 / 2 / 3', '切换日志 / 看板 / 报告'],
-                  ['Cmd+,', '打开设置'],
+                  [`${modifierLabel}+1 / 2 / 3 / 4`, '切换日志 / 看板 / 报告 / 统计'],
+                  [`${modifierLabel}+,`, '打开设置'],
                   ['Tab', '快速创建浮层中切换模式'],
                   ['Esc', '关闭浮层 / 返回']
                 ].map(([key, desc]) => (

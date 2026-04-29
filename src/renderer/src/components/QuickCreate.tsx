@@ -20,6 +20,14 @@ export function QuickCreate({ initialMode, onClose }: Props): JSX.Element {
   const { addTask } = useTaskStore()
   const toast = useToast()
 
+  const parseCategory = (text: string): { content: string; category: string } => {
+    const match = text.match(/#(\S+)\s*/)
+    if (match) {
+      return { content: text.replace(match[0], '').trim(), category: match[1] }
+    }
+    return { content: text, category: '' }
+  }
+
   useEffect(() => {
     inputRef.current?.focus()
   }, [mode])
@@ -30,7 +38,8 @@ export function QuickCreate({ initialMode, onClose }: Props): JSX.Element {
     setSubmitting(true)
     try {
       if (mode === 'log') {
-        await addLog(trimmed)
+        const { content, category } = parseCategory(trimmed)
+        await addLog(content, category)
         toast.success('日志已记录')
       } else {
         await addTask(trimmed)

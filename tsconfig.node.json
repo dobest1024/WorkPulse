@@ -6,6 +6,7 @@
     "allowSyntheticDefaultImports": true,
     "esModuleInterop": true,
     "outDir": "./out",
+    "tsBuildInfoFile": "./out/tsconfig.node.tsbuildinfo",
     "rootDir": ".",
     "strict": true,
     "skipLibCheck": true,

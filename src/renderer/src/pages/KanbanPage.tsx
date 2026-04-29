@@ -43,6 +43,7 @@ const COLUMNS: { id: ColumnId; label: string; color: string }[] = [
 ]
 
 const ALL_DROPPABLE_IDS: DroppableId[] = ['todo', 'in_progress', 'done', 'draft']
+const SAVE_SHORTCUT_LABEL = navigator.userAgent.includes('Mac') ? '⌘+Enter' : 'Ctrl+Enter'
 
 // --- Droppable Column Wrapper ---
 function DroppableColumn({
@@ -247,7 +248,7 @@ function SortableTaskCard({
               <button
                 onClick={saveEdit}
                 className="p-1 text-green-500 hover:text-green-600 transition-colors"
-                title="保存 (⌘+Enter)"
+                title={`保存 (${SAVE_SHORTCUT_LABEL})`}
               >
                 <Check className="w-3.5 h-3.5" />
               </button>

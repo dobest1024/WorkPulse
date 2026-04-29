@@ -10,7 +10,8 @@ import {
   ChevronDown,
   ChevronUp,
   Clock,
-  Download
+  Download,
+  Save
 } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import { getDateRange, type DatePreset } from '../lib/dateUtils'
@@ -38,6 +39,7 @@ function ReportPage(): JSX.Element {
   const [editing, setEditing] = useState(false)
   const [history, setHistory] = useState<Report[]>([])
   const [viewingReport, setViewingReport] = useState<Report | null>(null)
+  const [activeReport, setActiveReport] = useState<Report | null>(null)
   const [historyOpen, setHistoryOpen] = useState(true)
   const toast = useToast()
 
@@ -73,10 +75,12 @@ function ReportPage(): JSX.Element {
     setReportContent('')
     setErrorMsg('')
     setViewingReport(null)
+    setActiveReport(null)
 
     try {
       const report = await window.api.report.generate(dateFrom, dateTo)
       setReportContent(report.content)
+      setActiveReport(report)
       setStatus('success')
       await loadHistory()
     } catch (err) {
@@ -91,15 +95,19 @@ function ReportPage(): JSX.Element {
   }
 
   const handleCopy = async (): Promise<void> => {
-    const content = viewingReport ? viewingReport.content : reportContent
-    await navigator.clipboard.writeText(content)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 2000)
-    toast.success('已复制到剪贴板')
+    try {
+      await navigator.clipboard.writeText(reportContent)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+      toast.success('已复制到剪贴板')
+    } catch {
+      toast.error('复制失败')
+    }
   }
 
   const handleViewReport = (report: Report): void => {
     setViewingReport(report)
+    setActiveReport(report)
     setReportContent(report.content)
     setStatus('success')
     setEditing(false)
@@ -107,9 +115,32 @@ function ReportPage(): JSX.Element {
 
   const handleBackToNew = (): void => {
     setViewingReport(null)
+    setActiveReport(null)
     setReportContent('')
     setStatus('idle')
     setEditing(false)
+  }
+
+  const handleSaveReport = async (): Promise<void> => {
+    if (!activeReport) return
+
+    try {
+      const updated = await window.api.report.update(activeReport.id, reportContent)
+      if (!updated) {
+        toast.error('保存失败')
+        return
+      }
+
+      setActiveReport(updated)
+      if (viewingReport?.id === updated.id) {
+        setViewingReport(updated)
+      }
+      setReportContent(updated.content)
+      await loadHistory()
+      toast.success('报告已保存')
+    } catch {
+      toast.error('保存失败')
+    }
   }
 
   const formatReportDate = (dateStr: string): string => {
@@ -308,11 +339,10 @@ function ReportPage(): JSX.Element {
             </button>
             <button
               onClick={async () => {
-                const content = viewingReport ? viewingReport.content : reportContent
                 const range = viewingReport
                   ? `${viewingReport.date_from}-${viewingReport.date_to}`
                   : `${dateFrom}-${dateTo}`
-                const path = await window.api.export.report(content, range)
+                const path = await window.api.export.report(reportContent, range)
                 if (path) toast.success('报告已导出')
               }}
               className="flex items-center gap-2 px-4 py-2 border border-zinc-300 dark:border-zinc-600 text-zinc-600 dark:text-zinc-400 text-sm rounded-md hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors"
@@ -320,6 +350,15 @@ function ReportPage(): JSX.Element {
               <Download className="w-4 h-4" />
               导出
             </button>
+            {editing && activeReport && (
+              <button
+                onClick={handleSaveReport}
+                className="flex items-center gap-2 px-4 py-2 border border-zinc-300 dark:border-zinc-600 text-zinc-600 dark:text-zinc-400 text-sm rounded-md hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors"
+              >
+                <Save className="w-4 h-4" />
+                保存修改
+              </button>
+            )}
             {!isViewingHistory && (
               <button
                 onClick={handleGenerate}

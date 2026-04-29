@@ -2,10 +2,11 @@ import { app, BrowserWindow, shell, Menu, Tray, nativeImage, globalShortcut, ipc
 import { join } from 'path'
 import { readFileSync } from 'fs'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
-import { initDatabase, getSetting } from './db'
+import { initDatabase, getSetting, setSetting } from './db'
 import { registerIpcHandlers } from './ipc'
 
 let tray: Tray | null = null
+let isQuitting = false
 
 // --- Helpers ---
 
@@ -27,24 +28,29 @@ function sendToRenderer(channel: string): void {
 const DEFAULT_SHORTCUT_LOG = 'CmdOrCtrl+Shift+L'
 const DEFAULT_SHORTCUT_TASK = 'CmdOrCtrl+Shift+T'
 
-function getShortcuts(): { log: string; task: string } {
-  const log = getSetting('shortcut_quick_log') || DEFAULT_SHORTCUT_LOG
-  const task = getSetting('shortcut_quick_task') || DEFAULT_SHORTCUT_TASK
+function getShortcuts(overrides: Partial<{ log: string; task: string }> = {}): { log: string; task: string } {
+  const log = overrides.log ?? getSetting('shortcut_quick_log') ?? DEFAULT_SHORTCUT_LOG
+  const task = overrides.task ?? getSetting('shortcut_quick_task') ?? DEFAULT_SHORTCUT_TASK
   return { log, task }
 }
 
-export function reregisterGlobalShortcuts(): void {
-  globalShortcut.unregisterAll()
-  const { log, task } = getShortcuts()
+function registerShortcut(accelerator: string, channel: string): boolean {
   try {
-    globalShortcut.register(log, () => sendToRenderer('quick-create:log'))
+    return globalShortcut.register(accelerator, () => sendToRenderer(channel))
   } catch {
-    // Invalid or conflicting shortcut — skip
+    return false
   }
-  try {
-    globalShortcut.register(task, () => sendToRenderer('quick-create:task'))
-  } catch {
-    // Invalid or conflicting shortcut — skip
+}
+
+export function reregisterGlobalShortcuts(
+  overrides: Partial<{ log: string; task: string }> = {}
+): { log: boolean; task: boolean } {
+  globalShortcut.unregisterAll()
+  const { log, task } = getShortcuts(overrides)
+
+  return {
+    log: registerShortcut(log, 'quick-create:log'),
+    task: registerShortcut(task, 'quick-create:task')
   }
 }
 
@@ -94,6 +100,7 @@ function buildMenu(): void {
         { label: '日志', accelerator: 'CmdOrCtrl+1', click: () => sendToRenderer('navigate:worklog') },
         { label: '看板', accelerator: 'CmdOrCtrl+2', click: () => sendToRenderer('navigate:kanban') },
         { label: '报告', accelerator: 'CmdOrCtrl+3', click: () => sendToRenderer('navigate:report') },
+        { label: '统计', accelerator: 'CmdOrCtrl+4', click: () => sendToRenderer('navigate:stats') },
         { type: 'separator' },
         { label: '设置', accelerator: 'CmdOrCtrl+,', click: () => sendToRenderer('navigate:settings') }
       ]
@@ -214,6 +221,15 @@ function createWindow(): void {
     mainWindow.show()
   })
 
+  if (process.platform !== 'darwin') {
+    mainWindow.on('close', (event) => {
+      if (!isQuitting) {
+        event.preventDefault()
+        mainWindow.hide()
+      }
+    })
+  }
+
   mainWindow.webContents.setWindowOpenHandler((details) => {
     shell.openExternal(details.url)
     return { action: 'deny' }
@@ -230,10 +246,17 @@ function createWindow(): void {
 
 function registerShortcutIpc(): void {
   ipcMain.handle('shortcut:update', (_event, key: 'shortcut_quick_log' | 'shortcut_quick_task', value: string) => {
-    // Re-register shortcuts with new values (settings are already saved by settings IPC)
-    reregisterGlobalShortcuts()
+    const overrides = key === 'shortcut_quick_log' ? { log: value } : { task: value }
+    const results = reregisterGlobalShortcuts(overrides)
+    const success = results.log && results.task
+
+    if (!success) {
+      reregisterGlobalShortcuts()
+      return false
+    }
+
+    setSetting(key, value)
     buildMenu()
-    // Refresh tray menu
     if (tray) tray.setContextMenu(buildTrayMenu())
     return true
   })
@@ -259,7 +282,14 @@ app.whenReady().then(() => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
   })
 
-  reregisterGlobalShortcuts()
+  const results = reregisterGlobalShortcuts()
+  if (!results.log || !results.task) {
+    console.warn('One or more global shortcuts could not be registered')
+  }
+})
+
+app.on('before-quit', () => {
+  isQuitting = true
 })
 
 app.on('will-quit', () => {

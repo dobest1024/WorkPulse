@@ -15,6 +15,13 @@ interface Stats {
   streak: number
 }
 
+function formatLocalDate(date: Date): string {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
 // Count-up hook
 function useCountUp(target: number, duration = 600): number {
   const [value, setValue] = useState(0)
@@ -97,7 +104,7 @@ function BarChart({ data }: { data: DailyStats[] }): JSX.Element {
           const taskH = (d.task_completed / maxVal) * 100
           const day = new Date(d.date + 'T00:00:00')
           const label = `${day.getMonth() + 1}/${day.getDate()}`
-          const isToday = d.date === new Date().toISOString().slice(0, 10)
+          const isToday = d.date === formatLocalDate(new Date())
 
           return (
             <div
@@ -169,7 +176,7 @@ function HeatMap({ data }: { data: DailyStats[] }): JSX.Element {
 
   let currentWeek: { date: Date; count: number }[] = []
   for (let d = new Date(startDay); d <= today; d.setDate(d.getDate() + 1)) {
-    const dateStr = d.toISOString().slice(0, 10)
+    const dateStr = formatLocalDate(d)
     currentWeek.push({ date: new Date(d), count: dataMap.get(dateStr) || 0 })
     if (currentWeek.length === 7) {
       weeks.push(currentWeek)
@@ -193,9 +200,9 @@ function HeatMap({ data }: { data: DailyStats[] }): JSX.Element {
           <div key={wi} className="flex flex-col gap-1">
             {week.map((day) => (
               <div
-                key={day.date.toISOString()}
+                key={formatLocalDate(day.date)}
                 className={`w-3 h-3 rounded-sm ${getColor(day.count)} transition-all duration-300 hover:scale-150 hover:z-10`}
-                title={`${day.date.toISOString().slice(0, 10)}: ${day.count}条`}
+                title={`${formatLocalDate(day.date)}: ${day.count}条`}
               />
             ))}
           </div>
@@ -241,7 +248,7 @@ function StatsPage(): JSX.Element {
   for (let i = 13; i >= 0; i--) {
     const d = new Date(today)
     d.setDate(d.getDate() - i)
-    const dateStr = d.toISOString().slice(0, 10)
+    const dateStr = formatLocalDate(d)
     const existing = last14.find((s) => s.date === dateStr)
     filled.push(existing || { date: dateStr, log_count: 0, task_completed: 0 })
   }

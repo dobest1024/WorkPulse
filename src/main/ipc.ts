@@ -1,4 +1,4 @@
-import { ipcMain, safeStorage, dialog } from 'electron'
+import { ipcMain, dialog } from 'electron'
 import { writeFileSync } from 'fs'
 import {
   addWorkLog,
@@ -10,8 +10,10 @@ import {
   getCategories,
   updateWorkLogCategory,
   deleteWorkLog,
+  restoreWorkLog,
   saveReport,
   getReports,
+  updateReportContent,
   getSetting,
   setSetting,
   deleteSetting,
@@ -19,9 +21,11 @@ import {
   getTasks,
   updateTask,
   deleteTask,
-  reorderTasks
+  reorderTasks,
+  type Task
 } from './db'
 import { generateReport } from './ai'
+import { deleteStoredApiKey, getStoredApiKey, setStoredApiKey } from './secureSettings'
 
 export function registerIpcHandlers(): void {
   // --- Work Logs ---
@@ -54,6 +58,13 @@ export function registerIpcHandlers(): void {
     return deleteWorkLog(id)
   })
 
+  ipcMain.handle(
+    'worklog:restore',
+    (_event, log: { content: string; category: string; created_at: string; task_id: number | null }) => {
+      return restoreWorkLog(log)
+    }
+  )
+
   ipcMain.handle('stats:get', (_event, days?: number) => {
     return getStats(days)
   })
@@ -67,7 +78,12 @@ export function registerIpcHandlers(): void {
       if (logs.length === 0) {
         throw new Error('所选时间段内没有工作记录')
       }
-      const content = await generateReport(logs, dateFrom, dateTo)
+      const tasks = getTasks().filter((task) => {
+        if (task.status !== 'done') return true
+        const completedDate = task.completed_at?.slice(0, 10)
+        return Boolean(completedDate && completedDate >= dateFrom && completedDate <= dateTo)
+      })
+      const content = await generateReport(logs, dateFrom, dateTo, tasks)
       const report = saveReport('custom', dateFrom, dateTo, content)
       return report
     }
@@ -75,6 +91,10 @@ export function registerIpcHandlers(): void {
 
   ipcMain.handle('report:list', (_event, limit?: number) => {
     return getReports(limit)
+  })
+
+  ipcMain.handle('report:update', (_event, id: number, content: string) => {
+    return updateReportContent(id, content)
   })
 
   // --- Tasks ---
@@ -89,8 +109,12 @@ export function registerIpcHandlers(): void {
 
   ipcMain.handle(
     'task:update',
-    (_event, id: number, updates: { title?: string; description?: string; status?: string; position?: number }) => {
-      return updateTask(id, updates as any)
+    (
+      _event,
+      id: number,
+      updates: Partial<Pick<Task, 'title' | 'description' | 'status' | 'position' | 'due_date'>>
+    ) => {
+      return updateTask(id, updates)
     }
   )
 
@@ -108,7 +132,7 @@ export function registerIpcHandlers(): void {
     (_event, id: number, logContent: string) => {
       const task = updateTask(id, { status: 'done' })
       if (task && logContent.trim()) {
-        addWorkLog(logContent.trim())
+        addWorkLog(logContent.trim(), '', id)
       }
       return task
     }
@@ -118,28 +142,14 @@ export function registerIpcHandlers(): void {
 
   ipcMain.handle('settings:get', (_event, key: string) => {
     if (key === 'api_key') {
-      const encrypted = getSetting('api_key_encrypted')
-      if (encrypted && safeStorage.isEncryptionAvailable()) {
-        try {
-          return safeStorage.decryptString(Buffer.from(encrypted, 'base64'))
-        } catch {
-          return null
-        }
-      }
-      return getSetting('api_key')
+      return getStoredApiKey()
     }
     return getSetting(key)
   })
 
   ipcMain.handle('settings:set', (_event, key: string, value: string) => {
     if (key === 'api_key') {
-      if (safeStorage.isEncryptionAvailable()) {
-        const encrypted = safeStorage.encryptString(value).toString('base64')
-        setSetting('api_key_encrypted', encrypted)
-        setSetting('api_key', value)
-      } else {
-        setSetting('api_key', value)
-      }
+      setStoredApiKey(value)
       return
     }
     setSetting(key, value)
@@ -147,8 +157,7 @@ export function registerIpcHandlers(): void {
 
   ipcMain.handle('settings:delete', (_event, key: string) => {
     if (key === 'api_key') {
-      deleteSetting('api_key')
-      deleteSetting('api_key_encrypted')
+      deleteStoredApiKey()
       return
     }
     deleteSetting(key)
@@ -175,8 +184,11 @@ export function registerIpcHandlers(): void {
 
     let content: string
     if (format === 'csv') {
-      const header = '时间,内容\n'
-      const rows = logs.map((l) => `"${l.created_at}","${l.content.replace(/"/g, '""')}"`).join('\n')
+      const escapeCsvCell = (value: string): string => `"${value.replace(/"/g, '""')}"`
+      const header = '时间,分类,内容\n'
+      const rows = logs
+        .map((l) => [l.created_at, l.category, l.content].map(escapeCsvCell).join(','))
+        .join('\n')
       content = header + rows
     } else {
       const grouped = new Map<string, typeof logs>()
@@ -187,7 +199,10 @@ export function registerIpcHandlers(): void {
         grouped.set(date, list)
       }
       const sections = Array.from(grouped.entries()).map(([date, dateLogs]) => {
-        const items = dateLogs.map((l) => `- ${l.created_at.slice(11, 16)} ${l.content}`).join('\n')
+        const items = dateLogs.map((l) => {
+          const category = l.category ? ` [${l.category}]` : ''
+          return `- ${l.created_at.slice(11, 16)}${category} ${l.content}`
+        }).join('\n')
         return `## ${date}\n\n${items}`
       })
       content = `# WorkPulse 工作日志\n\n${sections.join('\n\n')}\n`

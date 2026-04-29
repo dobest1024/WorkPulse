@@ -2,7 +2,7 @@ import { contextBridge, ipcRenderer } from 'electron'
 import { electronAPI } from '@electron-toolkit/preload'
 
 type QuickCreateType = 'log' | 'task'
-type NavigatePage = 'worklog' | 'kanban' | 'report' | 'settings'
+type NavigatePage = 'worklog' | 'kanban' | 'report' | 'stats' | 'settings'
 
 const api = {
   worklog: {
@@ -16,7 +16,9 @@ const api = {
     categories: () => ipcRenderer.invoke('worklog:categories') as Promise<string[]>,
     setCategory: (id: number, category: string) =>
       ipcRenderer.invoke('worklog:setCategory', id, category),
-    delete: (id: number) => ipcRenderer.invoke('worklog:delete', id)
+    delete: (id: number) => ipcRenderer.invoke('worklog:delete', id),
+    restore: (log: { content: string; category: string; created_at: string; task_id: number | null }) =>
+      ipcRenderer.invoke('worklog:restore', log)
   },
   task: {
     add: (title: string, description?: string, status?: 'todo' | 'draft') =>
@@ -36,7 +38,9 @@ const api = {
   report: {
     generate: (dateFrom: string, dateTo: string) =>
       ipcRenderer.invoke('report:generate', dateFrom, dateTo),
-    list: (limit?: number) => ipcRenderer.invoke('report:list', limit)
+    list: (limit?: number) => ipcRenderer.invoke('report:list', limit),
+    update: (id: number, content: string) =>
+      ipcRenderer.invoke('report:update', id, content)
   },
   settings: {
     get: (key: string) => ipcRenderer.invoke('settings:get', key),
@@ -63,7 +67,7 @@ const api = {
       }
     },
     navigate: (cb: (page: NavigatePage) => void) => {
-      const pages: NavigatePage[] = ['worklog', 'kanban', 'report', 'settings']
+      const pages: NavigatePage[] = ['worklog', 'kanban', 'report', 'stats', 'settings']
       const handlers = pages.map((page) => {
         const handler = (): void => cb(page)
         ipcRenderer.on(`navigate:${page}`, handler)

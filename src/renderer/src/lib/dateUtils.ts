@@ -64,10 +64,10 @@ export function getDateRange(preset: DatePreset): { from: string; to: string; la
   }
 }
 
-export function groupLogsByDate(
-  logs: { created_at: string }[]
-): Map<string, typeof logs> {
-  const groups = new Map<string, typeof logs>()
+export function groupLogsByDate<T extends { created_at: string }>(
+  logs: T[]
+): Map<string, T[]> {
+  const groups = new Map<string, T[]>()
   for (const log of logs) {
     const dateKey = log.created_at.slice(0, 10)
     const group = groups.get(dateKey) || []

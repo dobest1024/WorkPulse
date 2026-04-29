@@ -31,7 +31,7 @@ interface Task {
 }
 
 type QuickCreateType = 'log' | 'task'
-type NavigatePage = 'worklog' | 'kanban' | 'report' | 'settings'
+type NavigatePage = 'worklog' | 'kanban' | 'report' | 'stats' | 'settings'
 
 interface API {
   on: {
@@ -54,6 +54,7 @@ interface API {
     categories: () => Promise<string[]>
     setCategory: (id: number, category: string) => Promise<void>
     delete: (id: number) => Promise<boolean>
+    restore: (log: Pick<WorkLog, 'content' | 'category' | 'created_at' | 'task_id'>) => Promise<WorkLog>
   }
   stats: {
     get: (days?: number) => Promise<{
@@ -67,6 +68,7 @@ interface API {
   report: {
     generate: (dateFrom: string, dateTo: string) => Promise<Report>
     list: (limit?: number) => Promise<Report[]>
+    update: (id: number, content: string) => Promise<Report | null>
   }
   settings: {
     get: (key: string) => Promise<string | null>

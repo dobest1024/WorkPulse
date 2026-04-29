@@ -91,7 +91,7 @@ export const useWorkLogStore = create<WorkLogStore>((set, get) => ({
   undoDelete: async () => {
     const deleted = get().lastDeleted
     if (!deleted) return
-    await window.api.worklog.add(deleted.content)
+    await window.api.worklog.restore(deleted)
     set({ lastDeleted: null })
     // Refresh to get correct ordering
     if (get().searchKeyword) {
