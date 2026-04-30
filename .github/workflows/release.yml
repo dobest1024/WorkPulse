@@ -22,15 +22,18 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - name: macOS
+          - name: macOS-x64
             os: macos-latest
-            command: npm run dist:mac
-          - name: Windows
+            command: npm run dist:mac -- --x64 --publish never
+          - name: macOS-arm64
+            os: macos-latest
+            command: npm run dist:mac -- --arm64 --publish never
+          - name: Windows-x64
             os: windows-latest
-            command: npm run dist:win
-          - name: Linux
+            command: npm run dist:win -- --publish never
+          - name: Linux-x64
             os: ubuntu-22.04
-            command: npm run dist:linux
+            command: npm run dist:linux -- --publish never
 
     env:
       CSC_IDENTITY_AUTO_DISCOVERY: false
@@ -82,20 +85,29 @@ jobs:
         with:
           path: artifacts
 
+      - name: Collect release assets
+        shell: bash
+        run: |
+          mkdir -p release-assets
+          find artifacts -type f \( \
+            -name '*.AppImage' -o \
+            -name '*.deb' -o \
+            -name '*.dmg' -o \
+            -name '*.exe' -o \
+            -name '*.zip' -o \
+            -name '*.blockmap' -o \
+            -name '*.yml' \
+          \) -exec cp {} release-assets/ \;
+          test "$(find release-assets -type f | wc -l)" -gt 0
+          find release-assets -maxdepth 1 -type f -print
+
       - name: Publish release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
           name: WorkPulse ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
           target_commitish: ${{ github.sha }}
-          files: |
-            artifacts/**/*.AppImage
-            artifacts/**/*.deb
-            artifacts/**/*.dmg
-            artifacts/**/*.exe
-            artifacts/**/*.zip
-            artifacts/**/*.blockmap
-            artifacts/**/*.yml
+          files: release-assets/*
           fail_on_unmatched_files: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
