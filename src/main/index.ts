@@ -5,6 +5,7 @@ import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import { initDatabase, getSetting, setSetting } from './db'
 import { registerIpcHandlers } from './ipc'
 import { tMain, type AppLanguage } from './i18n'
+import { configureAutoUpdater, registerUpdateIpc, startUpdateCheck } from './updater'
 
 let tray: Tray | null = null
 let isQuitting = false
@@ -280,11 +281,14 @@ app.whenReady().then(() => {
   })
 
   initDatabase()
+  configureAutoUpdater()
   registerIpcHandlers()
   registerShortcutIpc()
+  registerUpdateIpc()
   buildMenu()
   createTray()
   createWindow()
+  startUpdateCheck()
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()

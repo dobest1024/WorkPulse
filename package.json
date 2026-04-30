@@ -1,8 +1,12 @@
 {
   "name": "workpulse",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Work log + AI report generator desktop app",
   "author": "dobest1024 <dobest1024@users.noreply.github.com>",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/dobest1024/WorkPulse.git"
+  },
   "main": "./out/main/index.js",
   "scripts": {
     "dev": "electron-vite dev",
@@ -25,6 +29,13 @@
       "buildResources": "resources",
       "output": "dist"
     },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "dobest1024",
+        "repo": "WorkPulse"
+      }
+    ],
     "files": [
       "out/**/*",
       "!out/renderer/assets/*.map"
@@ -122,6 +133,7 @@
     "@dnd-kit/utilities": "^3.2.2",
     "better-sqlite3": "^11.0.0",
     "date-fns": "^3.6.0",
+    "electron-updater": "^6.8.3",
     "lucide-react": "^0.400.0",
     "react-markdown": "^9.0.0",
     "zustand": "^5.0.0"

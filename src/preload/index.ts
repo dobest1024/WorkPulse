@@ -4,10 +4,29 @@ import { electronAPI } from '@electron-toolkit/preload'
 type QuickCreateType = 'log' | 'task'
 type NavigatePage = 'worklog' | 'kanban' | 'report' | 'stats' | 'settings'
 type AppLanguage = 'system' | 'zh' | 'en'
+type UpdateStatus = 'idle' | 'checking' | 'available' | 'not_available' | 'downloading' | 'downloaded' | 'error'
+
+interface AppUpdateState {
+  status: UpdateStatus
+  currentVersion: string
+  version?: string
+  releaseName?: string
+  releaseDate?: string
+  releaseNotes?: string
+  releaseUrl?: string
+  downloadUrl?: string
+  progress?: number
+  error?: string
+  canInstall?: boolean
+}
 
 const api = {
   app: {
-    setLanguage: (language: AppLanguage) => ipcRenderer.invoke('app:language:update', language)
+    setLanguage: (language: AppLanguage) => ipcRenderer.invoke('app:language:update', language),
+    getVersion: () => ipcRenderer.invoke('app:get-version') as Promise<string>,
+    getUpdateState: () => ipcRenderer.invoke('app:updates:get-state') as Promise<AppUpdateState>,
+    checkForUpdates: () => ipcRenderer.invoke('app:updates:check') as Promise<AppUpdateState>,
+    installUpdate: () => ipcRenderer.invoke('app:updates:install') as Promise<boolean>
   },
   worklog: {
     add: (content: string, category?: string) =>
@@ -81,6 +100,13 @@ const api = {
         handlers.forEach(({ page, handler }) =>
           ipcRenderer.removeListener(`navigate:${page}`, handler)
         )
+      }
+    },
+    updateStatus: (cb: (state: AppUpdateState) => void) => {
+      const handler = (_event: Electron.IpcRendererEvent, state: AppUpdateState): void => cb(state)
+      ipcRenderer.on('app:update-status', handler)
+      return () => {
+        ipcRenderer.removeListener('app:update-status', handler)
       }
     }
   }

@@ -1,5 +1,19 @@
 import { useEffect, useRef, useState } from 'react'
-import { ArrowLeft, Eye, EyeOff, Trash2, RotateCcw, Keyboard, Sun, Moon, Monitor } from 'lucide-react'
+import {
+  ArrowLeft,
+  Eye,
+  EyeOff,
+  Trash2,
+  RotateCcw,
+  Keyboard,
+  Sun,
+  Moon,
+  Monitor,
+  RefreshCw,
+  Download,
+  CheckCircle2,
+  AlertCircle
+} from 'lucide-react'
 import { useToast } from '../components/Toast'
 import { useThemeStore } from '../stores/themeStore'
 import { useI18n, useLanguageStore } from '../stores/languageStore'
@@ -69,6 +83,19 @@ function ShortcutCapture({
 
 interface Props {
   onBack: () => void
+}
+
+type UpdateStatus = 'idle' | 'checking' | 'available' | 'not_available' | 'downloading' | 'downloaded' | 'error'
+
+interface AppUpdateState {
+  status: UpdateStatus
+  currentVersion: string
+  version?: string
+  releaseUrl?: string
+  downloadUrl?: string
+  progress?: number
+  error?: string
+  canInstall?: boolean
 }
 
 const DEFAULT_SYSTEM_PROMPT = `你是一个专业的工作报告助手。请根据用户提供的工作日志，生成一份结构化的工作总结报告。
@@ -142,6 +169,11 @@ function SettingsPage({ onBack }: Props): JSX.Element {
   const [reportTemplate, setReportTemplate] = useState(getDefaultReportTemplate(resolvedLanguage))
   const [shortcutLog, setShortcutLog] = useState('CmdOrCtrl+Shift+L')
   const [shortcutTask, setShortcutTask] = useState('CmdOrCtrl+Shift+T')
+  const [appVersion, setAppVersion] = useState('')
+  const [updateState, setUpdateState] = useState<AppUpdateState>({
+    status: 'idle',
+    currentVersion: ''
+  })
   const toast = useToast()
   const { theme, setTheme } = useThemeStore()
   const styleOptions = [
@@ -152,6 +184,14 @@ function SettingsPage({ onBack }: Props): JSX.Element {
 
   useEffect(() => {
     loadSettings()
+
+    void window.api.app.getVersion().then(setAppVersion)
+    void window.api.app.getUpdateState().then(setUpdateState)
+    const unsubscribeUpdateStatus = window.api.on.updateStatus(setUpdateState)
+
+    return () => {
+      unsubscribeUpdateStatus()
+    }
   }, [])
 
   useEffect(() => {
@@ -310,6 +350,46 @@ function SettingsPage({ onBack }: Props): JSX.Element {
     await window.api.settings.delete('report_template')
     toast.success(t('settings.templateReset'))
   }
+
+  const handleCheckUpdates = async (): Promise<void> => {
+    const state = await window.api.app.checkForUpdates()
+    setUpdateState(state)
+
+    if (state.status === 'not_available') {
+      toast.success(t('settings.updateNotAvailable'))
+    } else if (state.status === 'error') {
+      toast.error(t('settings.updateError', { message: state.error || '' }))
+    }
+  }
+
+  const handleInstallUpdate = async (): Promise<void> => {
+    await window.api.app.installUpdate()
+  }
+
+  const getUpdateMessage = (): string => {
+    switch (updateState.status) {
+      case 'checking':
+        return t('settings.checkingUpdates')
+      case 'available':
+        return updateState.downloadUrl
+          ? t('settings.updateAvailableManual', { version: updateState.version || '' })
+          : t('settings.updateAvailable', { version: updateState.version || '' })
+      case 'downloading':
+        return t('settings.updateDownloading', { progress: updateState.progress ?? 0 })
+      case 'downloaded':
+        return t('settings.updateDownloaded')
+      case 'not_available':
+        return t('settings.updateNotAvailable')
+      case 'error':
+        return t('settings.updateError', { message: updateState.error || '' })
+      case 'idle':
+      default:
+        return t('settings.updateIdle')
+    }
+  }
+
+  const currentVersion = appVersion || updateState.currentVersion || '-'
+  const isCheckingUpdate = updateState.status === 'checking' || updateState.status === 'downloading'
 
   return (
     <div className="h-screen flex flex-col bg-zinc-50 dark:bg-zinc-950">
@@ -609,9 +689,63 @@ function SettingsPage({ onBack }: Props): JSX.Element {
 
           {/* About */}
           <section>
+            <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100 mb-1">{t('settings.updates')}</h2>
+            <div className="h-px bg-zinc-200 dark:bg-zinc-700 mb-4" />
+            <div className="flex items-start justify-between gap-4 mb-6">
+              <div className="min-w-0">
+                <p className="text-sm text-zinc-600 dark:text-zinc-300">
+                  {t('settings.currentVersion', { version: currentVersion })}
+                </p>
+                <p className={`text-xs mt-1 flex items-center gap-1.5 ${
+                  updateState.status === 'error'
+                    ? 'text-red-500'
+                    : updateState.status === 'downloaded' || updateState.status === 'not_available'
+                      ? 'text-green-600 dark:text-green-400'
+                      : 'text-zinc-400'
+                }`}
+                >
+                  {updateState.status === 'downloaded' || updateState.status === 'not_available' ? (
+                    <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+                  ) : updateState.status === 'error' ? (
+                    <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                  ) : (
+                    <Download className="w-3.5 h-3.5 shrink-0" />
+                  )}
+                  <span>{getUpdateMessage()}</span>
+                </p>
+              </div>
+              <div className="flex flex-wrap justify-end gap-2">
+                <button
+                  onClick={handleCheckUpdates}
+                  disabled={isCheckingUpdate}
+                  className="flex items-center gap-1.5 px-3 py-2 text-sm rounded-md border border-zinc-300 dark:border-zinc-600 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  <RefreshCw className={`w-4 h-4 ${isCheckingUpdate ? 'animate-spin' : ''}`} />
+                  {isCheckingUpdate ? t('settings.checkingUpdates') : t('settings.checkUpdates')}
+                </button>
+                {updateState.status === 'downloaded' && (
+                  <button
+                    onClick={handleInstallUpdate}
+                    className="flex items-center gap-1.5 px-3 py-2 text-sm rounded-md bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 hover:bg-zinc-800 dark:hover:bg-zinc-200 transition-colors"
+                  >
+                    <Download className="w-4 h-4" />
+                    {t('settings.restartInstall')}
+                  </button>
+                )}
+                {updateState.releaseUrl && (
+                  <button
+                    onClick={() => window.open(updateState.releaseUrl, '_blank')}
+                    className="px-3 py-2 text-sm rounded-md border border-zinc-300 dark:border-zinc-600 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors"
+                  >
+                    {t('settings.openRelease')}
+                  </button>
+                )}
+              </div>
+            </div>
+
             <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100 mb-1">{t('settings.about')}</h2>
             <div className="h-px bg-zinc-200 dark:bg-zinc-700 mb-4" />
-            <p className="text-sm text-zinc-500 dark:text-zinc-400">WorkPulse v0.1.0</p>
+            <p className="text-sm text-zinc-500 dark:text-zinc-400">WorkPulse v{currentVersion}</p>
             <p className="text-xs text-zinc-400 mt-1">{t('settings.aboutText')}</p>
           </section>
         </div>

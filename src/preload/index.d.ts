@@ -33,14 +33,34 @@ interface Task {
 type QuickCreateType = 'log' | 'task'
 type NavigatePage = 'worklog' | 'kanban' | 'report' | 'stats' | 'settings'
 type AppLanguage = 'system' | 'zh' | 'en'
+type UpdateStatus = 'idle' | 'checking' | 'available' | 'not_available' | 'downloading' | 'downloaded' | 'error'
+
+interface AppUpdateState {
+  status: UpdateStatus
+  currentVersion: string
+  version?: string
+  releaseName?: string
+  releaseDate?: string
+  releaseNotes?: string
+  releaseUrl?: string
+  downloadUrl?: string
+  progress?: number
+  error?: string
+  canInstall?: boolean
+}
 
 interface API {
   app: {
     setLanguage: (language: AppLanguage) => Promise<void>
+    getVersion: () => Promise<string>
+    getUpdateState: () => Promise<AppUpdateState>
+    checkForUpdates: () => Promise<AppUpdateState>
+    installUpdate: () => Promise<boolean>
   }
   on: {
     quickCreate: (cb: (type: QuickCreateType) => void) => () => void
     navigate: (cb: (page: NavigatePage) => void) => () => void
+    updateStatus: (cb: (state: AppUpdateState) => void) => () => void
   }
   task: {
     add: (title: string, description?: string, status?: 'todo' | 'draft') => Promise<Task>

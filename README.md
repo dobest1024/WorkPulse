@@ -20,6 +20,8 @@ Built for individual contributors who want a frictionless way to remember what t
 
 **Languages** — English and Chinese UI with a system-default option. Menus, tray actions, settings, exports, and default AI report prompts follow the selected language.
 
+**Auto Updates** — Packaged builds check GitHub Releases for newer versions, download updates in the background, and install after restart. Settings also includes a manual update check.
+
 ## Tech Stack
 
 - **Electron** + **React** + **TypeScript**
@@ -57,6 +59,8 @@ git push origin v0.1.0
 ```
 
 The workflow uploads DMG/ZIP, NSIS/portable EXE, AppImage, and DEB artifacts to the GitHub Release. Builds are unsigned by default; add signing secrets later if you need notarized macOS or signed Windows installers.
+
+Packaged apps use the same GitHub Release metadata (`latest.yml`, `latest-mac.yml`, `latest-linux.yml`) for automatic update checks.
 
 ## Keyboard Shortcuts
 

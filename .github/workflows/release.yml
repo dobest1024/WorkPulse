@@ -66,13 +66,13 @@ jobs:
         with:
           name: WorkPulse-${{ matrix.name }}
           path: |
-            dist/**/*.AppImage
-            dist/**/*.deb
-            dist/**/*.dmg
-            dist/**/*.exe
-            dist/**/*.zip
-            dist/**/*.blockmap
-            dist/**/*.yml
+            dist/*.AppImage
+            dist/*.deb
+            dist/*.dmg
+            dist/*.exe
+            dist/*.zip
+            dist/*.blockmap
+            dist/latest*.yml
           if-no-files-found: error
 
   publish:

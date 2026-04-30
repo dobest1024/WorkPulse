@@ -6,6 +6,7 @@ import KanbanPage from './pages/KanbanPage'
 import StatsPage from './pages/StatsPage'
 import SettingsPage from './pages/SettingsPage'
 import { QuickCreate } from './components/QuickCreate'
+import { useToast } from './components/Toast'
 import { useThemeStore } from './stores/themeStore'
 import { useI18n, useLanguageStore } from './stores/languageStore'
 
@@ -18,11 +19,24 @@ function App(): JSX.Element {
   const initTheme = useThemeStore((s) => s.init)
   const initLanguage = useLanguageStore((s) => s.init)
   const { t } = useI18n()
+  const toast = useToast()
+  const updateDownloadedNotifiedRef = useRef(false)
 
   useEffect(() => {
     initTheme()
     initLanguage()
   }, [])
+
+  useEffect(() => {
+    const unsubscribe = window.api.on.updateStatus((state) => {
+      if (state.status === 'downloaded' && !updateDownloadedNotifiedRef.current) {
+        updateDownloadedNotifiedRef.current = true
+        toast.success(t('settings.updateDownloaded'))
+      }
+    })
+
+    return unsubscribe
+  }, [t, toast])
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
