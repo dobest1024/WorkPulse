@@ -70,7 +70,6 @@ jobs:
             dist/**/*.zip
             dist/**/*.blockmap
             dist/**/*.yml
-            dist/**/*.yaml
           if-no-files-found: error
 
   publish:
@@ -97,7 +96,6 @@ jobs:
             artifacts/**/*.zip
             artifacts/**/*.blockmap
             artifacts/**/*.yml
-            artifacts/**/*.yaml
           fail_on_unmatched_files: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
