@@ -1,6 +1,6 @@
 {
   "name": "workpulse",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Work log + AI report generator desktop app",
   "author": "dobest1024 <dobest1024@users.noreply.github.com>",
   "repository": {
@@ -112,10 +112,14 @@
       "icon": "resources/icon.ico"
     },
     "nsis": {
+      "artifactName": "WorkPulse-Setup-${version}-${arch}.${ext}",
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true
+    },
+    "portable": {
+      "artifactName": "WorkPulse-Portable-${version}-${arch}.${ext}"
     },
     "linux": {
       "target": [
