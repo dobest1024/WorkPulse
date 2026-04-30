@@ -16,6 +16,7 @@ import {
 import ReactMarkdown from 'react-markdown'
 import { getDateRange, type DatePreset } from '../lib/dateUtils'
 import { useToast } from '../components/Toast'
+import { useI18n } from '../stores/languageStore'
 
 interface Report {
   id: number
@@ -42,6 +43,7 @@ function ReportPage(): JSX.Element {
   const [activeReport, setActiveReport] = useState<Report | null>(null)
   const [historyOpen, setHistoryOpen] = useState(true)
   const toast = useToast()
+  const { t } = useI18n()
 
   useEffect(() => {
     checkApiKey()
@@ -84,8 +86,8 @@ function ReportPage(): JSX.Element {
       setStatus('success')
       await loadHistory()
     } catch (err) {
-      const msg = err instanceof Error ? err.message : '生成失败'
-      if (msg.includes('没有工作记录')) {
+      const msg = err instanceof Error ? err.message : t('report.generatedFallback')
+      if (msg.includes('没有工作记录') || msg.includes('No work logs')) {
         setStatus('no_data')
       } else {
         setErrorMsg(msg)
@@ -99,9 +101,9 @@ function ReportPage(): JSX.Element {
       await navigator.clipboard.writeText(reportContent)
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
-      toast.success('已复制到剪贴板')
+      toast.success(t('report.copied'))
     } catch {
-      toast.error('复制失败')
+      toast.error(t('report.copyFailed'))
     }
   }
 
@@ -127,7 +129,7 @@ function ReportPage(): JSX.Element {
     try {
       const updated = await window.api.report.update(activeReport.id, reportContent)
       if (!updated) {
-        toast.error('保存失败')
+        toast.error(t('report.saveFailed'))
         return
       }
 
@@ -137,9 +139,9 @@ function ReportPage(): JSX.Element {
       }
       setReportContent(updated.content)
       await loadHistory()
-      toast.success('报告已保存')
+      toast.success(t('report.saved'))
     } catch {
-      toast.error('保存失败')
+      toast.error(t('report.saveFailed'))
     }
   }
 
@@ -149,11 +151,11 @@ function ReportPage(): JSX.Element {
   }
 
   const presets: { value: DatePreset; label: string }[] = [
-    { value: 'this_week', label: '本周' },
-    { value: 'last_week', label: '上周' },
-    { value: 'this_month', label: '本月' },
-    { value: 'last_month', label: '上月' },
-    { value: 'this_quarter', label: '本季度' }
+    { value: 'this_week', label: t('report.thisWeek') },
+    { value: 'last_week', label: t('report.lastWeek') },
+    { value: 'this_month', label: t('report.thisMonth') },
+    { value: 'last_month', label: t('report.lastMonth') },
+    { value: 'this_quarter', label: t('report.thisQuarter') }
   ]
 
   const isViewingHistory = viewingReport !== null
@@ -167,14 +169,14 @@ function ReportPage(): JSX.Element {
             onClick={handleBackToNew}
             className="text-sm text-zinc-500 hover:text-zinc-700"
           >
-            &larr; 返回生成
+            &larr; {t('report.backToGenerate')}
           </button>
           <span className="text-sm text-zinc-400">|</span>
           <span className="text-sm text-zinc-600 dark:text-zinc-400">
-            {viewingReport.date_from} 至 {viewingReport.date_to}
+            {viewingReport.date_from} {t('common.to')} {viewingReport.date_to}
           </span>
           <span className="text-xs text-zinc-400">
-            生成于 {formatReportDate(viewingReport.generated_at)}
+            {t('report.generatedAt', { time: formatReportDate(viewingReport.generated_at) })}
           </span>
         </div>
       )}
@@ -205,7 +207,7 @@ function ReportPage(): JSX.Element {
                 onChange={(e) => setDateFrom(e.target.value)}
                 className="px-2 py-1 border border-zinc-300 dark:border-zinc-600 rounded-md text-sm outline-none focus:border-zinc-500 bg-white dark:bg-zinc-800 dark:text-zinc-100"
               />
-              <span>至</span>
+              <span>{t('common.to')}</span>
               <input
                 type="date"
                 value={dateTo}
@@ -224,10 +226,10 @@ function ReportPage(): JSX.Element {
             {status === 'generating' ? (
               <span className="flex items-center gap-2">
                 <RefreshCw className="w-4 h-4 animate-spin" />
-                AI 正在整理你的工作记录...
+                {t('report.generating')}
               </span>
             ) : (
-              '生成报告'
+              t('report.generate')
             )}
           </button>
         </>
@@ -238,9 +240,9 @@ function ReportPage(): JSX.Element {
         <div className="flex items-start gap-2 p-4 bg-amber-50 border border-amber-200 rounded-lg mb-6">
           <AlertCircle className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
           <div>
-            <p className="text-sm text-amber-800">请先在设置中配置 API Key</p>
+            <p className="text-sm text-amber-800">{t('report.noKeyTitle')}</p>
             <p className="text-xs text-amber-600 mt-1">
-              点击右上角的齿轮图标进入设置页面
+              {t('report.noKeySubtitle')}
             </p>
           </div>
         </div>
@@ -249,8 +251,8 @@ function ReportPage(): JSX.Element {
       {status === 'no_data' && !isViewingHistory && (
         <div className="text-center py-12">
           <FileText className="w-10 h-10 mx-auto text-zinc-300 mb-3" />
-          <p className="text-zinc-500 mb-1">所选时间段内没有工作记录</p>
-          <p className="text-zinc-400 text-sm">先去日志页记录一些工作内容吧</p>
+          <p className="text-zinc-500 mb-1">{t('report.noDataTitle')}</p>
+          <p className="text-zinc-400 text-sm">{t('report.noDataSubtitle')}</p>
         </div>
       )}
 
@@ -264,13 +266,13 @@ function ReportPage(): JSX.Element {
                 onClick={handleGenerate}
                 className="text-xs text-red-600 hover:text-red-800 underline"
               >
-                重试
+                {t('common.retry')}
               </button>
               <button
                 onClick={() => setStatus('idle')}
                 className="text-xs text-zinc-500 hover:text-zinc-700 underline"
               >
-                检查设置
+                {t('report.checkSettings')}
               </button>
             </div>
           </div>
@@ -290,7 +292,7 @@ function ReportPage(): JSX.Element {
                 }`}
               >
                 <Eye className="w-3.5 h-3.5" />
-                预览
+                {t('report.preview')}
               </button>
               <button
                 onClick={() => setEditing(true)}
@@ -299,7 +301,7 @@ function ReportPage(): JSX.Element {
                 }`}
               >
                 <Pencil className="w-3.5 h-3.5" />
-                编辑
+                {t('report.edit')}
               </button>
             </div>
           </div>
@@ -328,12 +330,12 @@ function ReportPage(): JSX.Element {
               {copied ? (
                 <>
                   <Check className="w-4 h-4" />
-                  已复制
+                  {t('report.copiedState')}
                 </>
               ) : (
                 <>
                   <Copy className="w-4 h-4" />
-                  复制到剪贴板
+                  {t('report.copy')}
                 </>
               )}
             </button>
@@ -343,12 +345,12 @@ function ReportPage(): JSX.Element {
                   ? `${viewingReport.date_from}-${viewingReport.date_to}`
                   : `${dateFrom}-${dateTo}`
                 const path = await window.api.export.report(reportContent, range)
-                if (path) toast.success('报告已导出')
+                if (path) toast.success(t('report.exported'))
               }}
               className="flex items-center gap-2 px-4 py-2 border border-zinc-300 dark:border-zinc-600 text-zinc-600 dark:text-zinc-400 text-sm rounded-md hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors"
             >
               <Download className="w-4 h-4" />
-              导出
+              {t('common.export')}
             </button>
             {editing && activeReport && (
               <button
@@ -356,7 +358,7 @@ function ReportPage(): JSX.Element {
                 className="flex items-center gap-2 px-4 py-2 border border-zinc-300 dark:border-zinc-600 text-zinc-600 dark:text-zinc-400 text-sm rounded-md hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors"
               >
                 <Save className="w-4 h-4" />
-                保存修改
+                {t('report.saveChanges')}
               </button>
             )}
             {!isViewingHistory && (
@@ -365,7 +367,7 @@ function ReportPage(): JSX.Element {
                 className="flex items-center gap-2 px-4 py-2 border border-zinc-300 dark:border-zinc-600 text-zinc-600 dark:text-zinc-400 text-sm rounded-md hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors"
               >
                 <RefreshCw className="w-4 h-4" />
-                重新生成
+                {t('report.regenerate')}
               </button>
             )}
           </div>
@@ -376,7 +378,7 @@ function ReportPage(): JSX.Element {
       {status === 'idle' && !isViewingHistory && history.length === 0 && (
         <div className="text-center py-12">
           <FileText className="w-10 h-10 mx-auto text-zinc-300 mb-3" />
-          <p className="text-zinc-500">选择日期范围，一键生成工作报告</p>
+          <p className="text-zinc-500">{t('report.idle')}</p>
         </div>
       )}
 
@@ -388,7 +390,7 @@ function ReportPage(): JSX.Element {
             className="flex items-center gap-2 text-sm font-medium text-zinc-700 mb-4 hover:text-zinc-900"
           >
             <Clock className="w-4 h-4 text-zinc-400" />
-            历史报告
+            {t('report.history')}
             <span className="text-xs text-zinc-400 bg-zinc-100 px-1.5 py-0.5 rounded">
               {history.length}
             </span>
@@ -411,7 +413,7 @@ function ReportPage(): JSX.Element {
                     <div className="flex items-center gap-2">
                       <FileText className="w-4 h-4 text-zinc-400 shrink-0" />
                       <span className="text-sm text-zinc-700 dark:text-zinc-300">
-                        {report.date_from} 至 {report.date_to}
+                        {report.date_from} {t('common.to')} {report.date_to}
                       </span>
                     </div>
                     <p className="text-xs text-zinc-400 mt-1 ml-6 truncate">

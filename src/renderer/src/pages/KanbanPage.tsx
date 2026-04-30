@@ -23,6 +23,7 @@ import { restrictToWindowEdges } from '@dnd-kit/modifiers'
 import { Plus, Trash2, GripVertical, Archive, ChevronRight, ChevronLeft, Calendar, Pencil, Check, X } from 'lucide-react'
 import { useTaskStore } from '../stores/taskStore'
 import { useToast } from '../components/Toast'
+import { useI18n } from '../stores/languageStore'
 
 interface Task {
   id: number
@@ -36,10 +37,10 @@ interface Task {
 type ColumnId = 'todo' | 'in_progress' | 'done'
 type DroppableId = ColumnId | 'draft'
 
-const COLUMNS: { id: ColumnId; label: string; color: string }[] = [
-  { id: 'todo', label: '待办', color: 'border-zinc-300' },
-  { id: 'in_progress', label: '进行中', color: 'border-blue-400' },
-  { id: 'done', label: '已完成', color: 'border-green-400' }
+const COLUMNS: { id: ColumnId; labelKey: 'kanban.todo' | 'kanban.inProgress' | 'kanban.done'; color: string }[] = [
+  { id: 'todo', labelKey: 'kanban.todo', color: 'border-zinc-300' },
+  { id: 'in_progress', labelKey: 'kanban.inProgress', color: 'border-blue-400' },
+  { id: 'done', labelKey: 'kanban.done', color: 'border-green-400' }
 ]
 
 const ALL_DROPPABLE_IDS: DroppableId[] = ['todo', 'in_progress', 'done', 'draft']
@@ -152,6 +153,7 @@ function SortableTaskCard({
   const [editTitle, setEditTitle] = useState(task.title)
   const [editDesc, setEditDesc] = useState(task.description)
   const titleInputRef = useRef<HTMLInputElement>(null)
+  const { t } = useI18n()
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -235,27 +237,27 @@ function SortableTaskCard({
               value={editTitle}
               onChange={(e) => setEditTitle(e.target.value)}
               className="w-full px-2 py-1 text-sm border border-zinc-300 dark:border-zinc-600 rounded outline-none focus:border-blue-400 bg-white dark:bg-zinc-700 dark:text-zinc-100"
-              placeholder="任务标题"
+              placeholder={t('kanban.taskTitle')}
             />
             <textarea
               value={editDesc}
               onChange={(e) => setEditDesc(e.target.value)}
               className="w-full px-2 py-1 text-xs border border-zinc-300 dark:border-zinc-600 rounded outline-none focus:border-blue-400 bg-white dark:bg-zinc-700 dark:text-zinc-100 resize-none"
-              placeholder="添加描述...（可选）"
+              placeholder={t('kanban.descriptionPlaceholder')}
               rows={2}
             />
             <div className="flex items-center gap-1">
               <button
                 onClick={saveEdit}
                 className="p-1 text-green-500 hover:text-green-600 transition-colors"
-                title={`保存 (${SAVE_SHORTCUT_LABEL})`}
+                title={t('kanban.saveShortcut', { shortcut: SAVE_SHORTCUT_LABEL })}
               >
                 <Check className="w-3.5 h-3.5" />
               </button>
               <button
                 onClick={cancelEdit}
                 className="p-1 text-zinc-400 hover:text-zinc-600 transition-colors"
-                title="取消 (Esc)"
+                title={t('kanban.cancelShortcut')}
               >
                 <X className="w-3.5 h-3.5" />
               </button>
@@ -280,7 +282,7 @@ function SortableTaskCard({
               <button
                 onClick={openPicker}
                 className={`flex items-center gap-1 text-xs ${dueColor}`}
-                title={`截止: ${task.due_date}`}
+                title={t('kanban.dueTitle', { date: task.due_date })}
               >
                 <Calendar className="w-3 h-3" />
                 {formatDue(task.due_date)}
@@ -291,7 +293,7 @@ function SortableTaskCard({
                 className="opacity-0 group-hover:opacity-100 flex items-center gap-1 text-xs text-zinc-300 hover:text-zinc-500 transition-all"
               >
                 <Calendar className="w-3 h-3" />
-                截止
+                {t('kanban.due')}
               </button>
             )}
             {pickerRect && (
@@ -311,7 +313,7 @@ function SortableTaskCard({
             <button
               onClick={startEdit}
               className="opacity-0 group-hover:opacity-100 p-1 text-zinc-300 hover:text-blue-500 transition-all"
-              aria-label="编辑任务"
+              aria-label={t('kanban.editTask')}
             >
               <Pencil className="w-3.5 h-3.5" />
             </button>
@@ -319,7 +321,7 @@ function SortableTaskCard({
           <button
             onClick={() => onDelete(task.id)}
             className="opacity-0 group-hover:opacity-100 p-1 text-zinc-300 hover:text-red-500 transition-all"
-            aria-label="删除任务"
+            aria-label={t('kanban.deleteTask')}
           >
             <Trash2 className="w-3.5 h-3.5" />
           </button>
@@ -348,7 +350,8 @@ function CompleteDialog({
   onConfirm: (logContent: string) => void
   onCancel: () => void
 }): JSX.Element {
-  const [logContent, setLogContent] = useState(`完成任务：${task.title}`)
+  const { t } = useI18n()
+  const [logContent, setLogContent] = useState(() => t('kanban.completeLogDefault', { title: task.title }))
   const inputRef = useRef<HTMLTextAreaElement>(null)
 
   useEffect(() => {
@@ -368,9 +371,9 @@ function CompleteDialog({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 animate-fade-in">
       <div className="bg-white dark:bg-zinc-900 rounded-xl shadow-2xl w-full max-w-md mx-4 p-6 animate-scale-in">
-        <h3 className="text-base font-semibold text-zinc-900 dark:text-zinc-100 mb-1">任务完成</h3>
+        <h3 className="text-base font-semibold text-zinc-900 dark:text-zinc-100 mb-1">{t('kanban.completeTitle')}</h3>
         <p className="text-sm text-zinc-500 mb-4">
-          记录一下这个任务的产出？（将自动写入工作日志）
+          {t('kanban.completePrompt')}
         </p>
         <textarea
           ref={inputRef}
@@ -385,13 +388,13 @@ function CompleteDialog({
             onClick={onCancel}
             className="px-4 py-2 text-sm text-zinc-500 hover:text-zinc-700"
           >
-            跳过
+            {t('common.skip')}
           </button>
           <button
             onClick={() => onConfirm(logContent)}
             className="px-4 py-2 text-sm bg-zinc-900 text-white rounded-md hover:bg-zinc-800"
           >
-            记录并完成
+            {t('kanban.completeSubmit')}
           </button>
         </div>
       </div>
@@ -404,6 +407,7 @@ function KanbanPage(): JSX.Element {
   const { tasks, fetchTasks, addTask, updateTask, deleteTask, completeTask, reorderTasks } =
     useTaskStore()
   const toast = useToast()
+  const { t } = useI18n()
   const [newTaskTitle, setNewTaskTitle] = useState('')
   const [newTaskDesc, setNewTaskDesc] = useState('')
   const [showDescInput, setShowDescInput] = useState(false)
@@ -535,7 +539,7 @@ function KanbanPage(): JSX.Element {
     if (!pendingComplete) return
     await completeTask(pendingComplete.id, logContent)
     setPendingComplete(null)
-    toast.success('🎉 任务已完成，已写入工作日志')
+    toast.success(t('kanban.completedToast'))
   }
 
   const handleCancelComplete = async (): Promise<void> => {
@@ -578,7 +582,7 @@ function KanbanPage(): JSX.Element {
                 onChange={(e) => setNewTaskTitle(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && handleAddTask()}
                 onFocus={() => setShowDescInput(true)}
-                placeholder="添加新任务..."
+                placeholder={t('kanban.newTask')}
                 className="flex-1 px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg text-sm outline-none focus:border-zinc-500 focus:ring-2 focus:ring-zinc-200 dark:focus:ring-zinc-700 bg-white dark:bg-zinc-800 dark:text-zinc-100"
               />
               <button
@@ -586,7 +590,7 @@ function KanbanPage(): JSX.Element {
                 className="flex items-center gap-1 px-4 py-2 bg-zinc-900 text-white text-sm rounded-lg hover:bg-zinc-800 transition-all btn-bounce"
               >
                 <Plus className="w-4 h-4" />
-                添加
+                {t('common.add')}
               </button>
             </div>
             {showDescInput && (
@@ -595,7 +599,7 @@ function KanbanPage(): JSX.Element {
                 value={newTaskDesc}
                 onChange={(e) => setNewTaskDesc(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleAddTask()}
-                placeholder="添加描述...（可选，Enter 保存）"
+                placeholder={t('kanban.newDescription')}
                 className="mt-2 w-full px-3 py-1.5 border border-zinc-200 dark:border-zinc-700 rounded-lg text-xs outline-none focus:border-zinc-400 focus:ring-1 focus:ring-zinc-200 dark:focus:ring-zinc-700 bg-white dark:bg-zinc-800 dark:text-zinc-100 animate-slide-up"
               />
             )}
@@ -608,7 +612,7 @@ function KanbanPage(): JSX.Element {
               return (
                 <div key={col.id} className="min-h-[200px]">
                   <div className={`flex items-center gap-2 mb-3 pb-2 border-b-2 ${col.color}`}>
-                    <h3 className="text-sm font-medium text-zinc-700 dark:text-zinc-300">{col.label}</h3>
+                    <h3 className="text-sm font-medium text-zinc-700 dark:text-zinc-300">{t(col.labelKey)}</h3>
                     <span className="text-xs text-zinc-400 bg-zinc-100 dark:bg-zinc-800 px-1.5 py-0.5 rounded">
                       {columnTasks.length}
                     </span>
@@ -630,7 +634,7 @@ function KanbanPage(): JSX.Element {
                         ))}
                         {columnTasks.length === 0 && (
                           <div className="text-center py-8 text-xs text-zinc-300">
-                            拖拽任务到这里
+                            {t('kanban.dropHere')}
                           </div>
                         )}
                       </div>
@@ -656,7 +660,7 @@ function KanbanPage(): JSX.Element {
               localStorage.setItem('kanban:draftOpen', String(next))
             }}
             className="flex items-center justify-center h-10 border-b border-zinc-200 dark:border-zinc-700 text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors shrink-0 rounded-t-lg"
-            aria-label={draftOpen ? '收起草稿箱' : '展开草稿箱'}
+            aria-label={draftOpen ? t('kanban.collapseDrafts') : t('kanban.expandDrafts')}
           >
             {draftOpen ? (
               <ChevronRight className="w-4 h-4" />
@@ -669,7 +673,7 @@ function KanbanPage(): JSX.Element {
             <div className="flex flex-col items-center gap-1 pt-3">
               <Archive className="w-4 h-4 text-zinc-400" />
               <span className="text-xs text-zinc-400" style={{ writingMode: 'vertical-rl' }}>
-                草稿箱 ({draftTasks.length})
+                {t('kanban.draftsCollapsed', { count: draftTasks.length })}
               </span>
             </div>
           )}
@@ -678,14 +682,14 @@ function KanbanPage(): JSX.Element {
             <div className="flex flex-col flex-1 overflow-hidden">
               <div className="flex items-center gap-2 px-3 py-3 border-b border-zinc-200 dark:border-zinc-700">
                 <Archive className="w-4 h-4 text-zinc-400" />
-                <h3 className="text-sm font-medium text-zinc-700 dark:text-zinc-300">草稿箱</h3>
+                <h3 className="text-sm font-medium text-zinc-700 dark:text-zinc-300">{t('kanban.drafts')}</h3>
                 <span className="text-xs text-zinc-400 bg-zinc-100 dark:bg-zinc-800 px-1.5 py-0.5 rounded">
                   {draftTasks.length}
                 </span>
               </div>
 
               <p className="text-xs text-zinc-400 px-3 py-2">
-                可办可不办的想法，拖到待办即为计划
+                {t('kanban.draftHelp')}
               </p>
 
               {/* Draft Input */}
@@ -696,7 +700,7 @@ function KanbanPage(): JSX.Element {
                     value={draftInput}
                     onChange={(e) => setDraftInput(e.target.value)}
                     onKeyDown={(e) => e.key === 'Enter' && handleAddDraft()}
-                    placeholder="随手记一个..."
+                    placeholder={t('kanban.draftPlaceholder')}
                     className="flex-1 px-2 py-1.5 border border-zinc-200 dark:border-zinc-600 rounded text-xs outline-none focus:border-zinc-400 bg-white dark:bg-zinc-800 dark:text-zinc-100"
                   />
                   <button
@@ -725,7 +729,7 @@ function KanbanPage(): JSX.Element {
                     ))}
                     {draftTasks.length === 0 && (
                       <div className="text-center py-6 text-xs text-zinc-300">
-                        暂无草稿
+                        {t('kanban.noDrafts')}
                       </div>
                     )}
                   </div>

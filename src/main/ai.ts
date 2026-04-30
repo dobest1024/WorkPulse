@@ -1,5 +1,6 @@
 import { getSetting } from './db'
 import { getStoredApiKey } from './secureSettings'
+import { getResolvedLanguage, tMain } from './i18n'
 
 interface Message {
   role: 'system' | 'user' | 'assistant'
@@ -36,6 +37,28 @@ const DEFAULT_REPORT_TEMPLATE = `## 工作总结 ({{dateFrom}} - {{dateTo}})
 ### 下周计划
 （基于当前工作的合理推断）`
 
+const DEFAULT_SYSTEM_PROMPT_EN = `You are a professional work report assistant. Generate a structured work summary from the user's work logs.
+
+Requirements:
+- Language: {{language}}
+- Style: {{style}}
+- Date range: {{dateFrom}} to {{dateTo}}
+- Output format: Markdown
+- Group work by topic/project
+- Highlight key outcomes and deliverables
+- Keep it concise and useful; avoid a raw chronological dump`
+
+const DEFAULT_REPORT_TEMPLATE_EN = `## Work Summary ({{dateFrom}} - {{dateTo}})
+
+### Key Outcomes
+(Group important outcomes by project/topic)
+
+### Work in Progress
+(Items that are not finished but have meaningful progress)
+
+### Next Plan
+(Reasonable next steps based on current work)`
+
 export async function generateReport(
   logs: { content: string; created_at: string }[],
   dateFrom: string,
@@ -44,16 +67,17 @@ export async function generateReport(
 ): Promise<string> {
   const apiKey = getStoredApiKey()
   if (!apiKey) {
-    throw new Error('API Key 未配置')
+    throw new Error(tMain('apiKeyMissing'))
   }
 
+  const resolvedLanguage = getResolvedLanguage()
   const provider = getSetting('ai_provider') || 'openai'
   const baseUrl = getSetting('ai_base_url') || ''
   const model = getSetting('ai_model') || ''
-  const language = getSetting('report_language') || '中文'
-  const style = getSetting('report_style') || '简洁专业'
-  const customPrompt = getSetting('system_prompt') || DEFAULT_SYSTEM_PROMPT
-  const reportTemplate = getSetting('report_template') || DEFAULT_REPORT_TEMPLATE
+  const language = getSetting('report_language') || (resolvedLanguage === 'zh' ? '中文' : 'English')
+  const style = getSetting('report_style') || (resolvedLanguage === 'zh' ? '简洁专业' : 'Concise professional')
+  const customPrompt = getSetting('system_prompt') || (resolvedLanguage === 'zh' ? DEFAULT_SYSTEM_PROMPT : DEFAULT_SYSTEM_PROMPT_EN)
+  const reportTemplate = getSetting('report_template') || (resolvedLanguage === 'zh' ? DEFAULT_REPORT_TEMPLATE : DEFAULT_REPORT_TEMPLATE_EN)
 
   const vars: Record<string, string> = { language, style, dateFrom, dateTo }
   const systemPrompt = replaceVars(customPrompt, vars)
@@ -64,7 +88,12 @@ export async function generateReport(
     .join('\n')
 
   const taskContext = formatTaskContext(tasks)
-  const userMessage = `以下是我的工作日志，请生成工作总结报告：\n\n${logsText}${taskContext ? `\n\n相关任务上下文：\n${taskContext}` : ''}\n\n请参考以下格式模板输出：\n${templateHint}`
+  const taskBlock = taskContext ? tMain('taskContextTitle', { tasks: taskContext }) : ''
+  const userMessage = tMain('reportUserMessage', {
+    logs: logsText,
+    tasks: taskBlock,
+    template: templateHint
+  })
 
   const messages: Message[] = [
     { role: 'system', content: systemPrompt },
@@ -83,12 +112,13 @@ function replaceVars(template: string, vars: Record<string, string>): string {
 
 function formatTaskContext(tasks: ReportTaskContext[]): string {
   if (tasks.length === 0) return ''
+  const separator = getResolvedLanguage() === 'zh' ? '，' : ', '
 
   const statusLabel: Record<ReportTaskContext['status'], string> = {
-    todo: '待办',
-    in_progress: '进行中',
-    done: '已完成',
-    draft: '草稿'
+    todo: tMain('taskTodo'),
+    in_progress: tMain('taskInProgress'),
+    done: tMain('taskDone'),
+    draft: tMain('taskDraft')
   }
 
   return tasks
@@ -96,9 +126,9 @@ function formatTaskContext(tasks: ReportTaskContext[]): string {
     .map((task) => {
       const meta = [
         statusLabel[task.status],
-        task.due_date ? `截止 ${task.due_date}` : '',
-        task.completed_at ? `完成于 ${task.completed_at}` : ''
-      ].filter(Boolean).join('，')
+        task.due_date ? tMain('taskDue', { date: task.due_date }) : '',
+        task.completed_at ? tMain('taskCompletedAt', { date: task.completed_at }) : ''
+      ].filter(Boolean).join(separator)
       const description = task.description?.trim() ? ` — ${task.description.trim()}` : ''
       return `- [${meta}] ${task.title}${description}`
     })
@@ -131,11 +161,11 @@ async function callOpenAI(
 
   if (!response.ok) {
     const error = await response.text()
-    throw new Error(`OpenAI API 错误: ${response.status} - ${error}`)
+    throw new Error(`${tMain('openAiError')}: ${response.status} - ${error}`)
   }
 
   const data = await response.json()
-  return data.choices[0]?.message?.content || '生成失败：无内容返回'
+  return data.choices[0]?.message?.content || tMain('noGeneratedContent')
 }
 
 async function callAnthropic(
@@ -168,11 +198,11 @@ async function callAnthropic(
 
   if (!response.ok) {
     const error = await response.text()
-    throw new Error(`Anthropic API 错误: ${response.status} - ${error}`)
+    throw new Error(`${tMain('anthropicError')}: ${response.status} - ${error}`)
   }
 
   const data = await response.json()
-  return data.content[0]?.text || '生成失败：无内容返回'
+  return data.content[0]?.text || tMain('noGeneratedContent')
 }
 
-export { DEFAULT_SYSTEM_PROMPT, DEFAULT_REPORT_TEMPLATE }
+export { DEFAULT_SYSTEM_PROMPT, DEFAULT_REPORT_TEMPLATE, DEFAULT_SYSTEM_PROMPT_EN, DEFAULT_REPORT_TEMPLATE_EN }

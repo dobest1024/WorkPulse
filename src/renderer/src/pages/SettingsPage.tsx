@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from 'react'
 import { ArrowLeft, Eye, EyeOff, Trash2, RotateCcw, Keyboard, Sun, Moon, Monitor } from 'lucide-react'
 import { useToast } from '../components/Toast'
 import { useThemeStore } from '../stores/themeStore'
+import { useI18n, useLanguageStore } from '../stores/languageStore'
+import type { AppLanguage, ResolvedLanguage } from '../lib/i18n'
 
 // Convert a KeyboardEvent to an Electron-style accelerator string
 function eventToAccelerator(e: KeyboardEvent): string | null {
@@ -26,10 +28,12 @@ function eventToAccelerator(e: KeyboardEvent): string | null {
 
 function ShortcutCapture({
   value,
-  onChange
+  onChange,
+  capturingLabel
 }: {
   value: string
   onChange: (v: string) => void
+  capturingLabel: string
 }): JSX.Element {
   const [capturing, setCapturing] = useState(false)
   const ref = useRef<HTMLButtonElement>(null)
@@ -58,7 +62,7 @@ function ShortcutCapture({
         }`}
     >
       <Keyboard className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
-      {capturing ? '按下快捷键...' : value}
+      {capturing ? capturingLabel : value}
     </button>
   )
 }
@@ -89,9 +93,42 @@ const DEFAULT_REPORT_TEMPLATE = `## 工作总结 ({{dateFrom}} - {{dateTo}})
 ### 下周计划
 （基于当前工作的合理推断）`
 
+const DEFAULT_SYSTEM_PROMPT_EN = `You are a professional work report assistant. Generate a structured work summary from the user's work logs.
+
+Requirements:
+- Language: {{language}}
+- Style: {{style}}
+- Date range: {{dateFrom}} to {{dateTo}}
+- Output format: Markdown
+- Group work by topic/project
+- Highlight key outcomes and deliverables
+- Keep it concise and useful; avoid a raw chronological dump`
+
+const DEFAULT_REPORT_TEMPLATE_EN = `## Work Summary ({{dateFrom}} - {{dateTo}})
+
+### Key Outcomes
+(Group important outcomes by project/topic)
+
+### Work in Progress
+(Items that are not finished but have meaningful progress)
+
+### Next Plan
+(Reasonable next steps based on current work)`
+
+function getDefaultSystemPrompt(language: ResolvedLanguage): string {
+  return language === 'zh' ? DEFAULT_SYSTEM_PROMPT : DEFAULT_SYSTEM_PROMPT_EN
+}
+
+function getDefaultReportTemplate(language: ResolvedLanguage): string {
+  return language === 'zh' ? DEFAULT_REPORT_TEMPLATE : DEFAULT_REPORT_TEMPLATE_EN
+}
+
 function SettingsPage({ onBack }: Props): JSX.Element {
   const isMac = navigator.userAgent.includes('Mac')
   const modifierLabel = isMac ? 'Cmd' : 'Ctrl'
+  const { language: appLanguage, resolvedLanguage, t } = useI18n()
+  const setAppLanguage = useLanguageStore((s) => s.setLanguage)
+  const previousLanguageRef = useRef<ResolvedLanguage>(resolvedLanguage)
   const [apiKey, setApiKey] = useState('')
   const [hasKey, setHasKey] = useState(false)
   const [showKey, setShowKey] = useState(false)
@@ -99,18 +136,47 @@ function SettingsPage({ onBack }: Props): JSX.Element {
   const [provider, setProvider] = useState('openai')
   const [baseUrl, setBaseUrl] = useState('')
   const [model, setModel] = useState('')
-  const [language, setLanguage] = useState('中文')
-  const [style, setStyle] = useState('简洁专业')
-  const [systemPrompt, setSystemPrompt] = useState(DEFAULT_SYSTEM_PROMPT)
-  const [reportTemplate, setReportTemplate] = useState(DEFAULT_REPORT_TEMPLATE)
+  const [reportLanguage, setReportLanguage] = useState(resolvedLanguage === 'zh' ? '中文' : 'English')
+  const [style, setStyle] = useState(t('settings.styleConcise'))
+  const [systemPrompt, setSystemPrompt] = useState(getDefaultSystemPrompt(resolvedLanguage))
+  const [reportTemplate, setReportTemplate] = useState(getDefaultReportTemplate(resolvedLanguage))
   const [shortcutLog, setShortcutLog] = useState('CmdOrCtrl+Shift+L')
   const [shortcutTask, setShortcutTask] = useState('CmdOrCtrl+Shift+T')
   const toast = useToast()
   const { theme, setTheme } = useThemeStore()
+  const styleOptions = [
+    t('settings.styleConcise'),
+    t('settings.styleDetailed'),
+    t('settings.styleCasual')
+  ]
 
   useEffect(() => {
     loadSettings()
   }, [])
+
+  useEffect(() => {
+    const previousLanguage = previousLanguageRef.current
+    if (previousLanguage === resolvedLanguage) return
+
+    setReportLanguage((current) => {
+      const previousDefault = previousLanguage === 'zh' ? '中文' : 'English'
+      return current === previousDefault ? (resolvedLanguage === 'zh' ? '中文' : 'English') : current
+    })
+    setStyle((current) => {
+      const previousDefault = previousLanguage === 'zh' ? '简洁专业' : 'Concise professional'
+      return current === previousDefault ? t('settings.styleConcise') : current
+    })
+    setSystemPrompt((current) => {
+      const previousDefault = getDefaultSystemPrompt(previousLanguage)
+      return current.trim() === previousDefault.trim() ? getDefaultSystemPrompt(resolvedLanguage) : current
+    })
+    setReportTemplate((current) => {
+      const previousDefault = getDefaultReportTemplate(previousLanguage)
+      return current.trim() === previousDefault.trim() ? getDefaultReportTemplate(resolvedLanguage) : current
+    })
+
+    previousLanguageRef.current = resolvedLanguage
+  }, [resolvedLanguage, t])
 
   const loadSettings = async (): Promise<void> => {
     const key = await window.api.settings.get('api_key')
@@ -125,9 +191,17 @@ function SettingsPage({ onBack }: Props): JSX.Element {
     const m = await window.api.settings.get('ai_model')
     if (m) setModel(m)
     const l = await window.api.settings.get('report_language')
-    if (l) setLanguage(l)
+    if (l) {
+      setReportLanguage(l)
+    } else {
+      setReportLanguage(resolvedLanguage === 'zh' ? '中文' : 'English')
+    }
     const s = await window.api.settings.get('report_style')
-    if (s) setStyle(s)
+    if (s) {
+      setStyle(s)
+    } else {
+      setStyle(t('settings.styleConcise'))
+    }
     const sp = await window.api.settings.get('system_prompt')
     if (sp) setSystemPrompt(sp)
     const rt = await window.api.settings.get('report_template')
@@ -145,12 +219,12 @@ function SettingsPage({ onBack }: Props): JSX.Element {
   ): Promise<void> => {
     const updated = await window.api.shortcut.update(key, value)
     if (!updated) {
-      toast.error('快捷键无效或已被系统占用')
+      toast.error(t('settings.shortcutTaken'))
       return
     }
 
     setter(value)
-    toast.success('快捷键已更新')
+    toast.success(t('settings.shortcutSaved'))
   }
 
   const maskKey = (key: string): string => {
@@ -163,7 +237,7 @@ function SettingsPage({ onBack }: Props): JSX.Element {
     await window.api.settings.set('api_key', apiKey.trim())
     setHasKey(true)
     setEditing(false)
-    toast.success('API Key 已安全保存')
+    toast.success(t('settings.apiKeySaved'))
   }
 
   const handleDeleteKey = async (): Promise<void> => {
@@ -171,7 +245,7 @@ function SettingsPage({ onBack }: Props): JSX.Element {
     setApiKey('')
     setHasKey(false)
     setEditing(false)
-    toast.success('API Key 已删除')
+    toast.success(t('settings.apiKeyDeleted'))
   }
 
   const saveSetting = async (key: string, value: string): Promise<void> => {
@@ -196,7 +270,7 @@ function SettingsPage({ onBack }: Props): JSX.Element {
   }
 
   const handleLanguageChange = async (value: string): Promise<void> => {
-    setLanguage(value)
+    setReportLanguage(value)
     await window.api.settings.set('report_language', value)
   }
 
@@ -205,8 +279,12 @@ function SettingsPage({ onBack }: Props): JSX.Element {
     await window.api.settings.set('report_style', value)
   }
 
+  const handleAppLanguageChange = async (value: AppLanguage): Promise<void> => {
+    await setAppLanguage(value)
+  }
+
   const handleSystemPromptBlur = async (): Promise<void> => {
-    if (systemPrompt.trim() === DEFAULT_SYSTEM_PROMPT.trim()) {
+    if (systemPrompt.trim() === getDefaultSystemPrompt(resolvedLanguage).trim()) {
       await window.api.settings.delete('system_prompt')
     } else {
       await window.api.settings.set('system_prompt', systemPrompt)
@@ -214,7 +292,7 @@ function SettingsPage({ onBack }: Props): JSX.Element {
   }
 
   const handleReportTemplateBlur = async (): Promise<void> => {
-    if (reportTemplate.trim() === DEFAULT_REPORT_TEMPLATE.trim()) {
+    if (reportTemplate.trim() === getDefaultReportTemplate(resolvedLanguage).trim()) {
       await window.api.settings.delete('report_template')
     } else {
       await window.api.settings.set('report_template', reportTemplate)
@@ -222,15 +300,15 @@ function SettingsPage({ onBack }: Props): JSX.Element {
   }
 
   const resetSystemPrompt = async (): Promise<void> => {
-    setSystemPrompt(DEFAULT_SYSTEM_PROMPT)
+    setSystemPrompt(getDefaultSystemPrompt(resolvedLanguage))
     await window.api.settings.delete('system_prompt')
-    toast.success('系统提示词已恢复默认')
+    toast.success(t('settings.systemPromptReset'))
   }
 
   const resetReportTemplate = async (): Promise<void> => {
-    setReportTemplate(DEFAULT_REPORT_TEMPLATE)
+    setReportTemplate(getDefaultReportTemplate(resolvedLanguage))
     await window.api.settings.delete('report_template')
-    toast.success('报告模板已恢复默认')
+    toast.success(t('settings.templateReset'))
   }
 
   return (
@@ -240,11 +318,11 @@ function SettingsPage({ onBack }: Props): JSX.Element {
         <button
           onClick={onBack}
           className="p-2 text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-md transition-colors mr-2"
-          aria-label="返回"
+          aria-label={t('settings.back')}
         >
           <ArrowLeft className="w-5 h-5" />
         </button>
-        <h1 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">设置</h1>
+        <h1 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">{t('settings.title')}</h1>
       </header>
 
       {/* Content */}
@@ -252,13 +330,13 @@ function SettingsPage({ onBack }: Props): JSX.Element {
         <div className="max-w-2xl mx-auto px-4 py-6 space-y-8">
           {/* AI Configuration */}
           <section>
-            <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100 mb-1">AI 配置</h2>
+            <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100 mb-1">{t('settings.aiConfig')}</h2>
             <div className="h-px bg-zinc-200 dark:bg-zinc-700 mb-4" />
 
             {/* API Key */}
             <div className="mb-4">
               <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">API Key</label>
-              <p className="text-xs text-zinc-400 mb-2">用于生成工作报告的 AI 服务密钥</p>
+              <p className="text-xs text-zinc-400 mb-2">{t('settings.apiKeyHelp')}</p>
               {hasKey && !editing ? (
                 <div className="flex items-center gap-2">
                   <code className="flex-1 px-3 py-2 bg-zinc-100 dark:bg-zinc-800 rounded-md text-sm text-zinc-600 dark:text-zinc-400 font-mono">
@@ -267,7 +345,7 @@ function SettingsPage({ onBack }: Props): JSX.Element {
                   <button
                     onClick={() => setShowKey(!showKey)}
                     className="p-2 text-zinc-400 hover:text-zinc-600"
-                    aria-label={showKey ? '隐藏' : '显示'}
+                    aria-label={showKey ? t('settings.hide') : t('settings.show')}
                   >
                     {showKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
@@ -275,12 +353,12 @@ function SettingsPage({ onBack }: Props): JSX.Element {
                     onClick={() => setEditing(true)}
                     className="px-3 py-1.5 text-sm text-zinc-600 border border-zinc-300 rounded-md hover:bg-zinc-50"
                   >
-                    修改
+                    {t('settings.modify')}
                   </button>
                   <button
                     onClick={handleDeleteKey}
                     className="p-2 text-zinc-400 hover:text-red-500"
-                    aria-label="删除 API Key"
+                    aria-label={t('settings.deleteApiKey')}
                   >
                     <Trash2 className="w-4 h-4" />
                   </button>
@@ -291,14 +369,14 @@ function SettingsPage({ onBack }: Props): JSX.Element {
                     type="password"
                     value={apiKey}
                     onChange={(e) => setApiKey(e.target.value)}
-                    placeholder="粘贴你的 API Key"
+                    placeholder={t('settings.apiKeyPlaceholder')}
                     className="flex-1 px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-md text-sm outline-none focus:border-zinc-500 focus:ring-2 focus:ring-zinc-200 dark:focus:ring-zinc-700 bg-white dark:bg-zinc-800 dark:text-zinc-100"
                   />
                   <button
                     onClick={handleSaveKey}
                     className="px-4 py-2 text-sm bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 rounded-md hover:bg-zinc-800 dark:hover:bg-zinc-200"
                   >
-                    保存
+                    {t('common.save')}
                   </button>
                   {editing && (
                     <button
@@ -308,7 +386,7 @@ function SettingsPage({ onBack }: Props): JSX.Element {
                       }}
                       className="px-3 py-2 text-sm text-zinc-500 hover:text-zinc-700"
                     >
-                      取消
+                      {t('common.cancel')}
                     </button>
                   )}
                 </div>
@@ -317,7 +395,7 @@ function SettingsPage({ onBack }: Props): JSX.Element {
 
             {/* AI Provider */}
             <div className="mb-4">
-              <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">AI 服务</label>
+              <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">{t('settings.aiProvider')}</label>
               <select
                 value={provider}
                 onChange={(e) => handleProviderChange(e.target.value)}
@@ -330,9 +408,9 @@ function SettingsPage({ onBack }: Props): JSX.Element {
 
             {/* Base URL */}
             <div className="mb-4">
-              <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">API Base URL</label>
+              <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">{t('settings.baseUrl')}</label>
               <p className="text-xs text-zinc-400 mb-2">
-                自定义 API 地址，留空使用官方默认地址。支持中转服务、本地模型等
+                {t('settings.baseUrlHelp')}
               </p>
               <input
                 type="text"
@@ -345,9 +423,9 @@ function SettingsPage({ onBack }: Props): JSX.Element {
             </div>
             {/* Model */}
             <div className="mb-4">
-              <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">模型名称</label>
+              <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">{t('settings.modelName')}</label>
               <p className="text-xs text-zinc-400 mb-2">
-                留空使用默认模型。如 qwen-plus、gpt-4o、claude-sonnet-4-20250514 等
+                {t('settings.modelHelp')}
               </p>
               <input
                 type="text"
@@ -362,14 +440,14 @@ function SettingsPage({ onBack }: Props): JSX.Element {
 
           {/* Report Preferences */}
           <section>
-            <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100 mb-1">报告偏好</h2>
+            <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100 mb-1">{t('settings.reportPrefs')}</h2>
             <div className="h-px bg-zinc-200 dark:bg-zinc-700 mb-4" />
 
             <div className="grid grid-cols-2 gap-4 mb-4">
               <div>
-                <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">报告语言</label>
+                <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">{t('settings.reportLanguage')}</label>
                 <select
-                  value={language}
+                  value={reportLanguage}
                   onChange={(e) => handleLanguageChange(e.target.value)}
                   className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-md text-sm outline-none focus:border-zinc-500 focus:ring-2 focus:ring-zinc-200 dark:focus:ring-zinc-700 bg-white dark:bg-zinc-800 dark:text-zinc-100"
                 >
@@ -378,15 +456,16 @@ function SettingsPage({ onBack }: Props): JSX.Element {
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">报告风格</label>
+                <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">{t('settings.reportStyle')}</label>
                 <select
                   value={style}
                   onChange={(e) => handleStyleChange(e.target.value)}
                   className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-md text-sm outline-none focus:border-zinc-500 focus:ring-2 focus:ring-zinc-200 dark:focus:ring-zinc-700 bg-white dark:bg-zinc-800 dark:text-zinc-100"
                 >
-                  <option value="简洁专业">简洁专业</option>
-                  <option value="详细全面">详细全面</option>
-                  <option value="轻松随意">轻松随意</option>
+                  {!styleOptions.includes(style) && <option value={style}>{style}</option>}
+                  {styleOptions.map((option) => (
+                    <option key={option} value={option}>{option}</option>
+                  ))}
                 </select>
               </div>
             </div>
@@ -394,18 +473,18 @@ function SettingsPage({ onBack }: Props): JSX.Element {
             {/* System Prompt */}
             <div className="mb-4">
               <div className="flex items-center justify-between mb-1">
-                <label className="block text-sm font-medium text-zinc-700">系统提示词</label>
+                <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300">{t('settings.systemPrompt')}</label>
                 <button
                   onClick={resetSystemPrompt}
                   className="flex items-center gap-1 text-xs text-zinc-400 hover:text-zinc-600"
-                  title="恢复默认"
+                  title={t('settings.restoreDefault')}
                 >
                   <RotateCcw className="w-3 h-3" />
-                  恢复默认
+                  {t('settings.restoreDefault')}
                 </button>
               </div>
               <p className="text-xs text-zinc-400 mb-2">
-                控制 AI 生成报告的行为。支持变量：{'{{language}} {{style}} {{dateFrom}} {{dateTo}}'}
+                {t('settings.promptHelp')}
               </p>
               <textarea
                 value={systemPrompt}
@@ -419,18 +498,18 @@ function SettingsPage({ onBack }: Props): JSX.Element {
             {/* Report Template */}
             <div className="mb-4">
               <div className="flex items-center justify-between mb-1">
-                <label className="block text-sm font-medium text-zinc-700">报告输出模板</label>
+                <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300">{t('settings.reportTemplate')}</label>
                 <button
                   onClick={resetReportTemplate}
                   className="flex items-center gap-1 text-xs text-zinc-400 hover:text-zinc-600"
-                  title="恢复默认"
+                  title={t('settings.restoreDefault')}
                 >
                   <RotateCcw className="w-3 h-3" />
-                  恢复默认
+                  {t('settings.restoreDefault')}
                 </button>
               </div>
               <p className="text-xs text-zinc-400 mb-2">
-                定义报告的输出格式，AI 会参考此模板生成内容。支持 Markdown 和变量
+                {t('settings.templateHelp')}
               </p>
               <textarea
                 value={reportTemplate}
@@ -444,37 +523,39 @@ function SettingsPage({ onBack }: Props): JSX.Element {
 
           {/* Shortcuts */}
           <section>
-            <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100 mb-1">全局快捷键</h2>
+            <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100 mb-1">{t('settings.shortcuts')}</h2>
             <div className="h-px bg-zinc-200 dark:bg-zinc-700 mb-4" />
             <p className="text-xs text-zinc-400 mb-4">
-              点击快捷键框后按下新的组合键即可修改。快捷键在应用切换到后台后仍然有效。
+              {t('settings.shortcutsHelp')}
             </p>
 
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">快速记录日志</label>
+                <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">{t('settings.shortcutLog')}</label>
                 <ShortcutCapture
                   value={shortcutLog}
                   onChange={(v) => handleShortcutChange('shortcut_quick_log', v, setShortcutLog)}
+                  capturingLabel={t('settings.capturingShortcut')}
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">快速添加任务</label>
+                <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">{t('settings.shortcutTask')}</label>
                 <ShortcutCapture
                   value={shortcutTask}
                   onChange={(v) => handleShortcutChange('shortcut_quick_task', v, setShortcutTask)}
+                  capturingLabel={t('settings.capturingShortcut')}
                 />
               </div>
             </div>
 
             <div className="mt-4 p-3 bg-zinc-50 dark:bg-zinc-800/50 rounded-lg">
-              <p className="text-xs font-medium text-zinc-600 mb-2">其他快捷键（不可修改）</p>
+              <p className="text-xs font-medium text-zinc-600 dark:text-zinc-300 mb-2">{t('settings.otherShortcuts')}</p>
               <div className="space-y-1">
                 {[
-                  [`${modifierLabel}+1 / 2 / 3 / 4`, '切换日志 / 看板 / 报告 / 统计'],
-                  [`${modifierLabel}+,`, '打开设置'],
-                  ['Tab', '快速创建浮层中切换模式'],
-                  ['Esc', '关闭浮层 / 返回']
+                  [`${modifierLabel}+1 / 2 / 3 / 4`, t('settings.navShortcuts')],
+                  [`${modifierLabel}+,`, t('settings.openSettings')],
+                  ['Tab', t('settings.quickModeShortcut')],
+                  ['Esc', t('settings.closeShortcut')]
                 ].map(([key, desc]) => (
                   <div key={key} className="flex items-center justify-between">
                     <code className="text-xs bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-600 px-1.5 py-0.5 rounded text-zinc-600 dark:text-zinc-400">
@@ -489,13 +570,26 @@ function SettingsPage({ onBack }: Props): JSX.Element {
 
           {/* Appearance */}
           <section>
-            <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100 mb-1">外观</h2>
+            <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100 mb-1">{t('settings.appearance')}</h2>
             <div className="h-px bg-zinc-200 dark:bg-zinc-700 mb-4" />
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">{t('settings.language')}</label>
+              <p className="text-xs text-zinc-400 mb-2">{t('settings.languageHelp')}</p>
+              <select
+                value={appLanguage}
+                onChange={(e) => handleAppLanguageChange(e.target.value as AppLanguage)}
+                className="px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-md text-sm outline-none focus:border-zinc-500 focus:ring-2 focus:ring-zinc-200 dark:focus:ring-zinc-700 bg-white dark:bg-zinc-800 dark:text-zinc-100"
+              >
+                <option value="system">{t('settings.languageSystem')}</option>
+                <option value="zh">{t('settings.languageZh')}</option>
+                <option value="en">{t('settings.languageEn')}</option>
+              </select>
+            </div>
             <div className="flex gap-2">
               {([
-                { value: 'light', label: '浅色', Icon: Sun },
-                { value: 'dark', label: '深色', Icon: Moon },
-                { value: 'system', label: '跟随系统', Icon: Monitor }
+                { value: 'light', label: t('settings.themeLight'), Icon: Sun },
+                { value: 'dark', label: t('settings.themeDark'), Icon: Moon },
+                { value: 'system', label: t('settings.themeSystem'), Icon: Monitor }
               ] as const).map(({ value, label, Icon }) => (
                 <button
                   key={value}
@@ -515,10 +609,10 @@ function SettingsPage({ onBack }: Props): JSX.Element {
 
           {/* About */}
           <section>
-            <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100 mb-1">关于</h2>
+            <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100 mb-1">{t('settings.about')}</h2>
             <div className="h-px bg-zinc-200 dark:bg-zinc-700 mb-4" />
             <p className="text-sm text-zinc-500 dark:text-zinc-400">WorkPulse v0.1.0</p>
-            <p className="text-xs text-zinc-400 mt-1">工作日志 + AI 报告生成桌面应用</p>
+            <p className="text-xs text-zinc-400 mt-1">{t('settings.aboutText')}</p>
           </section>
         </div>
       </main>

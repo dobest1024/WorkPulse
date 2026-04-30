@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef } from 'react'
 import { Flame, FileText, CheckCircle2, ListTodo } from 'lucide-react'
+import { useI18n } from '../stores/languageStore'
 
 interface DailyStats {
   date: string
@@ -76,7 +77,7 @@ function StatCard({
       </div>
       <div>
         <p className="text-2xl font-bold text-zinc-900 dark:text-zinc-100 tabular-nums">
-          {displayValue}{suffix}
+          {displayValue}{suffix ? ` ${suffix}` : ''}
         </p>
         <p className="text-xs text-zinc-500 dark:text-zinc-400">{label}</p>
       </div>
@@ -88,6 +89,7 @@ function BarChart({ data }: { data: DailyStats[] }): JSX.Element {
   const maxVal = Math.max(...data.map((d) => d.log_count + d.task_completed), 1)
   const [visible, setVisible] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
+  const { t } = useI18n()
 
   useEffect(() => {
     // Trigger bar grow after mount
@@ -97,7 +99,7 @@ function BarChart({ data }: { data: DailyStats[] }): JSX.Element {
 
   return (
     <div ref={ref} className="bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl p-5 animate-slide-up" style={{ animationDelay: '200ms' }}>
-      <h3 className="text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-4">每日活动</h3>
+      <h3 className="text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-4">{t('stats.dailyActivity')}</h3>
       <div className="flex items-end gap-1 h-32">
         {data.map((d, i) => {
           const logH = (d.log_count / maxVal) * 100
@@ -110,7 +112,7 @@ function BarChart({ data }: { data: DailyStats[] }): JSX.Element {
             <div
               key={d.date}
               className="flex-1 flex flex-col items-center gap-0.5 min-w-0"
-              title={`${d.date}: ${d.log_count}条日志, ${d.task_completed}个任务完成`}
+              title={t('stats.dayTooltip', { date: d.date, logs: d.log_count, tasks: d.task_completed })}
             >
               <div className="w-full flex flex-col justify-end h-24">
                 {d.task_completed > 0 && (
@@ -152,10 +154,10 @@ function BarChart({ data }: { data: DailyStats[] }): JSX.Element {
       </div>
       <div className="flex items-center gap-4 mt-3 text-xs text-zinc-400 dark:text-zinc-500">
         <span className="flex items-center gap-1">
-          <span className="w-2.5 h-2.5 rounded-sm bg-blue-400" /> 日志
+          <span className="w-2.5 h-2.5 rounded-sm bg-blue-400" /> {t('stats.logLegend')}
         </span>
         <span className="flex items-center gap-1">
-          <span className="w-2.5 h-2.5 rounded-sm bg-green-400" /> 完成任务
+          <span className="w-2.5 h-2.5 rounded-sm bg-green-400" /> {t('stats.doneLegend')}
         </span>
       </div>
     </div>
@@ -167,6 +169,7 @@ function HeatMap({ data }: { data: DailyStats[] }): JSX.Element {
   const today = new Date()
   today.setHours(0, 0, 0, 0)
   const dataMap = new Map(data.map((d) => [d.date, d.log_count + d.task_completed]))
+  const { t } = useI18n()
 
   const weeks: { date: Date; count: number }[][] = []
   const startDay = new Date(today)
@@ -194,7 +197,7 @@ function HeatMap({ data }: { data: DailyStats[] }): JSX.Element {
 
   return (
     <div className="bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl p-5 animate-slide-up" style={{ animationDelay: '300ms' }}>
-      <h3 className="text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-3">活跃度</h3>
+      <h3 className="text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-3">{t('stats.activity')}</h3>
       <div className="flex gap-1">
         {weeks.map((week, wi) => (
           <div key={wi} className="flex flex-col gap-1">
@@ -202,19 +205,19 @@ function HeatMap({ data }: { data: DailyStats[] }): JSX.Element {
               <div
                 key={formatLocalDate(day.date)}
                 className={`w-3 h-3 rounded-sm ${getColor(day.count)} transition-all duration-300 hover:scale-150 hover:z-10`}
-                title={`${formatLocalDate(day.date)}: ${day.count}条`}
+                title={t('stats.heatTooltip', { date: formatLocalDate(day.date), count: day.count })}
               />
             ))}
           </div>
         ))}
       </div>
       <div className="flex items-center gap-1 mt-2 text-[10px] text-zinc-400">
-        <span>少</span>
+        <span>{t('stats.less')}</span>
         <span className="w-3 h-3 rounded-sm bg-zinc-100 dark:bg-zinc-800" />
         <span className="w-3 h-3 rounded-sm bg-green-200 dark:bg-green-900" />
         <span className="w-3 h-3 rounded-sm bg-green-400 dark:bg-green-700" />
         <span className="w-3 h-3 rounded-sm bg-green-600 dark:bg-green-500" />
-        <span>多</span>
+        <span>{t('stats.more')}</span>
       </div>
     </div>
   )
@@ -222,6 +225,7 @@ function HeatMap({ data }: { data: DailyStats[] }): JSX.Element {
 
 function StatsPage(): JSX.Element {
   const [stats, setStats] = useState<Stats | null>(null)
+  const { t } = useI18n()
 
   useEffect(() => {
     window.api.stats.get(90).then(setStats)
@@ -231,7 +235,7 @@ function StatsPage(): JSX.Element {
     return (
       <div className="text-center py-16 text-zinc-400">
         <div className="w-6 h-6 mx-auto mb-2 border-2 border-zinc-300 border-t-zinc-500 rounded-full animate-spin" />
-        加载中...
+        {t('common.loading')}
       </div>
     )
   }
@@ -259,29 +263,29 @@ function StatsPage(): JSX.Element {
       <div className="grid grid-cols-4 gap-3 mb-6">
         <StatCard
           icon={Flame}
-          label="连续记录"
+          label={t('stats.streak')}
           value={stats.streak}
-          suffix="天"
+          suffix={t('stats.days')}
           color={`bg-orange-100 dark:bg-orange-900/30 text-orange-600 ${stats.streak >= 7 ? 'streak-glow' : ''}`}
           delay={0}
         />
         <StatCard
           icon={FileText}
-          label="总日志数"
+          label={t('stats.totalLogs')}
           value={stats.totalLogs}
           color="bg-blue-100 dark:bg-blue-900/30 text-blue-600"
           delay={60}
         />
         <StatCard
           icon={CheckCircle2}
-          label="已完成任务"
+          label={t('stats.doneTasks')}
           value={stats.totalTasksDone}
           color="bg-green-100 dark:bg-green-900/30 text-green-600"
           delay={120}
         />
         <StatCard
           icon={ListTodo}
-          label="进行中任务"
+          label={t('stats.activeTasks')}
           value={stats.totalTasksActive}
           color="bg-purple-100 dark:bg-purple-900/30 text-purple-600"
           delay={180}

@@ -26,6 +26,7 @@ import {
 } from './db'
 import { generateReport } from './ai'
 import { deleteStoredApiKey, getStoredApiKey, setStoredApiKey } from './secureSettings'
+import { tMain } from './i18n'
 
 export function registerIpcHandlers(): void {
   // --- Work Logs ---
@@ -76,7 +77,7 @@ export function registerIpcHandlers(): void {
     async (_event, dateFrom: string, dateTo: string) => {
       const logs = getWorkLogsByDateRange(dateFrom, dateTo)
       if (logs.length === 0) {
-        throw new Error('所选时间段内没有工作记录')
+        throw new Error(tMain('noWorkLogsInRange'))
       }
       const tasks = getTasks().filter((task) => {
         if (task.status !== 'done') return true
@@ -167,11 +168,11 @@ export function registerIpcHandlers(): void {
 
   ipcMain.handle('export:logs', async (_event, format: 'csv' | 'markdown') => {
     const logs = getAllWorkLogs()
-    if (logs.length === 0) throw new Error('没有日志可导出')
+    if (logs.length === 0) throw new Error(tMain('noLogsToExport'))
 
     const ext = format === 'csv' ? 'csv' : 'md'
     const result = await dialog.showSaveDialog({
-      title: '导出工作日志',
+      title: tMain('exportLogsTitle'),
       defaultPath: `workpulse-logs.${ext}`,
       filters: [
         format === 'csv'
@@ -185,7 +186,7 @@ export function registerIpcHandlers(): void {
     let content: string
     if (format === 'csv') {
       const escapeCsvCell = (value: string): string => `"${value.replace(/"/g, '""')}"`
-      const header = '时间,分类,内容\n'
+      const header = tMain('csvHeader')
       const rows = logs
         .map((l) => [l.created_at, l.category, l.content].map(escapeCsvCell).join(','))
         .join('\n')
@@ -205,7 +206,7 @@ export function registerIpcHandlers(): void {
         }).join('\n')
         return `## ${date}\n\n${items}`
       })
-      content = `# WorkPulse 工作日志\n\n${sections.join('\n\n')}\n`
+      content = `${tMain('markdownLogsTitle')}\n\n${sections.join('\n\n')}\n`
     }
 
     writeFileSync(result.filePath, content, 'utf-8')
@@ -214,7 +215,7 @@ export function registerIpcHandlers(): void {
 
   ipcMain.handle('export:report', async (_event, reportContent: string, dateRange: string) => {
     const result = await dialog.showSaveDialog({
-      title: '导出报告',
+      title: tMain('exportReportTitle'),
       defaultPath: `workpulse-report-${dateRange}.md`,
       filters: [{ name: 'Markdown', extensions: ['md'] }]
     })

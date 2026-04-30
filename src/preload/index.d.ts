@@ -32,8 +32,12 @@ interface Task {
 
 type QuickCreateType = 'log' | 'task'
 type NavigatePage = 'worklog' | 'kanban' | 'report' | 'stats' | 'settings'
+type AppLanguage = 'system' | 'zh' | 'en'
 
 interface API {
+  app: {
+    setLanguage: (language: AppLanguage) => Promise<void>
+  }
   on: {
     quickCreate: (cb: (type: QuickCreateType) => void) => () => void
     navigate: (cb: (page: NavigatePage) => void) => () => void

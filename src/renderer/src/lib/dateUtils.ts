@@ -10,13 +10,16 @@ import {
   isYesterday,
   parseISO
 } from 'date-fns'
-import { zhCN } from 'date-fns/locale'
+import { enUS, zhCN } from 'date-fns/locale'
+import type { ResolvedLanguage } from './i18n'
 
-export function formatDate(dateStr: string): string {
+export function formatDate(dateStr: string, language: ResolvedLanguage = 'zh'): string {
   const date = parseISO(dateStr)
-  if (isToday(date)) return '今天'
-  if (isYesterday(date)) return '昨天'
-  return format(date, 'M月d日 EEEE', { locale: zhCN })
+  if (isToday(date)) return language === 'zh' ? '今天' : 'Today'
+  if (isYesterday(date)) return language === 'zh' ? '昨天' : 'Yesterday'
+  return language === 'zh'
+    ? format(date, 'M月d日 EEEE', { locale: zhCN })
+    : format(date, 'MMM d, EEEE', { locale: enUS })
 }
 
 export function formatTime(dateStr: string): string {

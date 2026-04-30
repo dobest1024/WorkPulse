@@ -3,6 +3,7 @@ import { ClipboardList, Columns3 } from 'lucide-react'
 import { useWorkLogStore } from '../stores/worklogStore'
 import { useTaskStore } from '../stores/taskStore'
 import { useToast } from './Toast'
+import { useI18n } from '../stores/languageStore'
 
 type Mode = 'log' | 'task'
 
@@ -19,6 +20,7 @@ export function QuickCreate({ initialMode, onClose }: Props): JSX.Element {
   const { addLog } = useWorkLogStore()
   const { addTask } = useTaskStore()
   const toast = useToast()
+  const { t } = useI18n()
 
   const parseCategory = (text: string): { content: string; category: string } => {
     const match = text.match(/#(\S+)\s*/)
@@ -40,10 +42,10 @@ export function QuickCreate({ initialMode, onClose }: Props): JSX.Element {
       if (mode === 'log') {
         const { content, category } = parseCategory(trimmed)
         await addLog(content, category)
-        toast.success('日志已记录')
+        toast.success(t('quick.logSaved'))
       } else {
         await addTask(trimmed)
-        toast.success('任务已添加到待办')
+        toast.success(t('quick.taskSaved'))
       }
       onClose()
     } finally {
@@ -86,7 +88,7 @@ export function QuickCreate({ initialMode, onClose }: Props): JSX.Element {
             }`}
           >
             <ClipboardList className="w-4 h-4" />
-            记录日志
+            {t('quick.log')}
           </button>
           <button
             onClick={() => { setMode('task'); setValue('') }}
@@ -97,7 +99,7 @@ export function QuickCreate({ initialMode, onClose }: Props): JSX.Element {
             }`}
           >
             <Columns3 className="w-4 h-4" />
-            添加任务
+            {t('quick.task')}
           </button>
         </div>
 
@@ -109,20 +111,20 @@ export function QuickCreate({ initialMode, onClose }: Props): JSX.Element {
             value={value}
             onChange={(e) => setValue(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder={mode === 'log' ? '今天干了什么？' : '任务名称...'}
+            placeholder={mode === 'log' ? t('quick.logPlaceholder') : t('quick.taskPlaceholder')}
             disabled={submitting}
             className="w-full px-3 py-2.5 text-base border border-zinc-300 dark:border-zinc-600 rounded-lg outline-none focus:border-zinc-500 focus:ring-2 focus:ring-zinc-200 dark:focus:ring-zinc-700 bg-white dark:bg-zinc-800 dark:text-zinc-100 disabled:opacity-50"
           />
           <div className="flex items-center justify-between mt-3">
             <span className="text-xs text-zinc-400">
-              Tab 切换模式 · Enter 保存 · Esc 关闭
+              {t('quick.help')}
             </span>
             <button
               onClick={handleSubmit}
               disabled={!value.trim() || submitting}
               className="px-4 py-1.5 bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 text-sm rounded-md hover:bg-zinc-800 dark:hover:bg-zinc-200 disabled:opacity-40 transition-all btn-bounce"
             >
-              {mode === 'log' ? '记录' : '添加'}
+              {mode === 'log' ? t('quick.submitLog') : t('common.add')}
             </button>
           </div>
         </div>

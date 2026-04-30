@@ -18,6 +18,8 @@ Built for individual contributors who want a frictionless way to remember what t
 
 **Dark Mode** — System, light, or dark theme with full UI coverage.
 
+**Languages** — English and Chinese UI with a system-default option. Menus, tray actions, settings, exports, and default AI report prompts follow the selected language.
+
 ## Tech Stack
 
 - **Electron** + **React** + **TypeScript**
@@ -44,6 +46,17 @@ npm run dist:mac    # macOS (DMG + ZIP, x64 + arm64)
 npm run dist:win    # Windows (NSIS installer)
 npm run dist:linux  # Linux (AppImage)
 ```
+
+## Release Builds
+
+GitHub Actions builds release artifacts for macOS, Windows, and Linux when a `v*` tag is pushed, or when the `Release` workflow is run manually.
+
+```bash
+git tag v0.1.0
+git push origin v0.1.0
+```
+
+The workflow uploads DMG/ZIP, NSIS/portable EXE, AppImage, and DEB artifacts to the GitHub Release. Builds are unsigned by default; add signing secrets later if you need notarized macOS or signed Windows installers.
 
 ## Keyboard Shortcuts
 

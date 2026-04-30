@@ -4,6 +4,7 @@ import { readFileSync } from 'fs'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import { initDatabase, getSetting, setSetting } from './db'
 import { registerIpcHandlers } from './ipc'
+import { tMain, type AppLanguage } from './i18n'
 
 let tray: Tray | null = null
 let isQuitting = false
@@ -80,33 +81,33 @@ function buildMenu(): void {
         ] as Electron.MenuItemConstructorOptions[])
       : []),
     {
-      label: '创建',
+      label: tMain('create'),
       submenu: [
         {
-          label: '新建日志',
+          label: tMain('newLog'),
           accelerator: logShortcut,
           click: () => sendToRenderer('quick-create:log')
         },
         {
-          label: '新建任务',
+          label: tMain('newTask'),
           accelerator: taskShortcut,
           click: () => sendToRenderer('quick-create:task')
         }
       ]
     },
     {
-      label: '导航',
+      label: tMain('navigation'),
       submenu: [
-        { label: '日志', accelerator: 'CmdOrCtrl+1', click: () => sendToRenderer('navigate:worklog') },
-        { label: '看板', accelerator: 'CmdOrCtrl+2', click: () => sendToRenderer('navigate:kanban') },
-        { label: '报告', accelerator: 'CmdOrCtrl+3', click: () => sendToRenderer('navigate:report') },
-        { label: '统计', accelerator: 'CmdOrCtrl+4', click: () => sendToRenderer('navigate:stats') },
+        { label: tMain('logs'), accelerator: 'CmdOrCtrl+1', click: () => sendToRenderer('navigate:worklog') },
+        { label: tMain('board'), accelerator: 'CmdOrCtrl+2', click: () => sendToRenderer('navigate:kanban') },
+        { label: tMain('reports'), accelerator: 'CmdOrCtrl+3', click: () => sendToRenderer('navigate:report') },
+        { label: tMain('stats'), accelerator: 'CmdOrCtrl+4', click: () => sendToRenderer('navigate:stats') },
         { type: 'separator' },
-        { label: '设置', accelerator: 'CmdOrCtrl+,', click: () => sendToRenderer('navigate:settings') }
+        { label: tMain('settings'), accelerator: 'CmdOrCtrl+,', click: () => sendToRenderer('navigate:settings') }
       ]
     },
     {
-      label: '编辑',
+      label: tMain('edit'),
       submenu: [
         { role: 'undo' }, { role: 'redo' },
         { type: 'separator' },
@@ -114,7 +115,7 @@ function buildMenu(): void {
       ]
     },
     {
-      label: '窗口',
+      label: tMain('window'),
       submenu: [
         { role: 'minimize' },
         { role: 'zoom' },
@@ -133,16 +134,16 @@ function buildMenu(): void {
 function buildTrayMenu(): Electron.Menu {
   return Menu.buildFromTemplate([
     {
-      label: '新建日志',
+      label: tMain('newLog'),
       click: () => sendToRenderer('quick-create:log')
     },
     {
-      label: '新建任务',
+      label: tMain('newTask'),
       click: () => sendToRenderer('quick-create:task')
     },
     { type: 'separator' },
     {
-      label: '显示 WorkPulse',
+      label: tMain('showApp'),
       click: () => {
         const win = getMainWindow()
         if (win) { win.show(); win.focus() }
@@ -150,7 +151,7 @@ function buildTrayMenu(): Electron.Menu {
     },
     { type: 'separator' },
     {
-      label: '退出',
+      label: tMain('quit'),
       click: () => app.quit()
     }
   ])
@@ -259,6 +260,13 @@ function registerShortcutIpc(): void {
     buildMenu()
     if (tray) tray.setContextMenu(buildTrayMenu())
     return true
+  })
+
+  ipcMain.handle('app:language:update', (_event, language: AppLanguage) => {
+    if (!['system', 'zh', 'en'].includes(language)) return
+    setSetting('app_language', language)
+    buildMenu()
+    if (tray) tray.setContextMenu(buildTrayMenu())
   })
 }
 

@@ -3,6 +3,7 @@ import { Trash2, ClipboardEdit, Search, X, Download, Undo2 } from 'lucide-react'
 import { useToast } from '../components/Toast'
 import { useWorkLogStore } from '../stores/worklogStore'
 import { formatDate, formatTime, groupLogsByDate } from '../lib/dateUtils'
+import { useI18n } from '../stores/languageStore'
 
 function WorkLogPage(): JSX.Element {
   const { logs, fetchLogs, loadMore, hasMore, addLog, deleteLog, undoDelete, lastDeleted, searchLogs, clearSearch, searchKeyword, loading } =
@@ -15,6 +16,7 @@ function WorkLogPage(): JSX.Element {
   const inputRef = useRef<HTMLInputElement>(null)
   const searchTimerRef = useRef<ReturnType<typeof setTimeout>>()
   const toast = useToast()
+  const { resolvedLanguage, t } = useI18n()
 
   useEffect(() => {
     fetchLogs()
@@ -33,7 +35,7 @@ function WorkLogPage(): JSX.Element {
     const trimmed = input.trim()
     if (!trimmed) {
       setShaking(true)
-      setError('请输入工作内容')
+      setError(t('worklog.emptyError'))
       setTimeout(() => {
         setShaking(false)
         setError('')
@@ -46,7 +48,7 @@ function WorkLogPage(): JSX.Element {
       await addLog(content, category)
       setInput('')
     } catch {
-      setError('保存失败，请重试')
+      setError(t('worklog.saveError'))
     }
     inputRef.current?.focus()
   }
@@ -78,12 +80,12 @@ function WorkLogPage(): JSX.Element {
   const handleDelete = async (id: number): Promise<void> => {
     await deleteLog(id)
     setDeletingId(null)
-    toast.success('已删除')
+    toast.success(t('worklog.deleted'))
   }
 
   const handleUndo = async (): Promise<void> => {
     await undoDelete()
-    toast.success('已恢复')
+    toast.success(t('worklog.restored'))
   }
 
   const grouped = groupLogsByDate(logs)
@@ -99,8 +101,8 @@ function WorkLogPage(): JSX.Element {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="今天干了什么？（#标签 自动分类）"
-            aria-label="记录工作日志"
+            placeholder={t('worklog.inputPlaceholder')}
+            aria-label={t('worklog.inputAria')}
             className={`w-full px-4 py-3 text-base border rounded-lg outline-none transition-all bg-white dark:bg-zinc-900 dark:text-zinc-100 ${
               shaking
                 ? 'animate-shake border-red-400 ring-2 ring-red-200'
@@ -119,7 +121,7 @@ function WorkLogPage(): JSX.Element {
             type="text"
             value={search}
             onChange={(e) => handleSearchChange(e.target.value)}
-            placeholder="搜索日志..."
+            placeholder={t('worklog.searchPlaceholder')}
             className="w-full pl-9 pr-8 py-2 text-sm border border-zinc-200 dark:border-zinc-700 rounded-lg outline-none focus:border-zinc-400 focus:ring-1 focus:ring-zinc-200 dark:focus:ring-zinc-700 bg-white dark:bg-zinc-900 dark:text-zinc-100"
           />
           {search && (
@@ -134,26 +136,26 @@ function WorkLogPage(): JSX.Element {
         <div className="relative group">
           <button className="flex items-center gap-1 px-3 py-2 text-sm border border-zinc-200 dark:border-zinc-700 rounded-lg text-zinc-500 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-all btn-bounce">
             <Download className="w-4 h-4" />
-            导出
+            {t('common.export')}
           </button>
           <div className="absolute right-0 top-full mt-1 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-10">
             <button
               onClick={async () => {
                 const path = await window.api.export.logs('csv')
-                if (path) toast.success('已导出 CSV')
+                if (path) toast.success(t('worklog.exportedCsv'))
               }}
               className="block w-full px-4 py-2 text-sm text-left text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700 rounded-t-lg whitespace-nowrap"
             >
-              导出 CSV
+              {t('worklog.exportCsv')}
             </button>
             <button
               onClick={async () => {
                 const path = await window.api.export.logs('markdown')
-                if (path) toast.success('已导出 Markdown')
+                if (path) toast.success(t('worklog.exportedMarkdown'))
               }}
               className="block w-full px-4 py-2 text-sm text-left text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700 rounded-b-lg whitespace-nowrap"
             >
-              导出 Markdown
+              {t('worklog.exportMarkdown')}
             </button>
           </div>
         </div>
@@ -162,9 +164,9 @@ function WorkLogPage(): JSX.Element {
       {/* Search info */}
       {searchKeyword && (
         <div className="mb-3 text-sm text-zinc-500">
-          搜索 &quot;{searchKeyword}&quot; — 找到 {logs.length} 条记录
+          {t('worklog.searchInfo', { keyword: searchKeyword, count: logs.length })}
           <button onClick={handleClearSearch} className="ml-2 text-blue-500 hover:underline">
-            清除
+            {t('common.clear')}
           </button>
         </div>
       )}
@@ -175,13 +177,13 @@ function WorkLogPage(): JSX.Element {
           <ClipboardEdit className="w-12 h-12 mx-auto text-zinc-300 mb-4 animate-float" />
           {searchKeyword ? (
             <>
-              <p className="text-zinc-500 text-lg mb-1">没有找到匹配的日志</p>
-              <p className="text-zinc-400 text-sm">试试其他关键词</p>
+              <p className="text-zinc-500 text-lg mb-1">{t('worklog.noResults')}</p>
+              <p className="text-zinc-400 text-sm">{t('worklog.tryOtherKeywords')}</p>
             </>
           ) : (
             <>
-              <p className="text-zinc-500 text-lg mb-1">开始记录你的第一条工作日志吧</p>
-              <p className="text-zinc-400 text-sm">输入你今天做了什么，按回车保存</p>
+              <p className="text-zinc-500 text-lg mb-1">{t('worklog.emptyTitle')}</p>
+              <p className="text-zinc-400 text-sm">{t('worklog.emptySubtitle')}</p>
             </>
           )}
         </div>
@@ -191,7 +193,7 @@ function WorkLogPage(): JSX.Element {
           {Array.from(grouped.entries()).map(([dateKey, dateLogs]) => (
             <div key={dateKey} role="group">
               <h3 className="text-sm font-medium text-zinc-400 mb-2">
-                {formatDate(dateKey + 'T00:00:00')}
+                {formatDate(dateKey + 'T00:00:00', resolvedLanguage)}
               </h3>
               <div className="space-y-1 stagger-children">
                 {dateLogs.map((log) => (
@@ -215,20 +217,20 @@ function WorkLogPage(): JSX.Element {
                             onClick={() => handleDelete(log.id)}
                             className="text-xs text-red-500 hover:text-red-700 px-1"
                           >
-                            确认
+                            {t('common.confirm')}
                           </button>
                           <button
                             onClick={() => setDeletingId(null)}
                             className="text-xs text-zinc-400 hover:text-zinc-600 px-1"
                           >
-                            取消
+                            {t('common.cancel')}
                           </button>
                         </div>
                       ) : (
                         <button
                           onClick={() => setDeletingId(log.id)}
                           className="opacity-0 group-hover:opacity-100 p-1 text-zinc-400 hover:text-red-500 transition-all"
-                          aria-label="删除此条日志"
+                          aria-label={t('worklog.deleteAria')}
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
@@ -247,7 +249,7 @@ function WorkLogPage(): JSX.Element {
               disabled={loading}
               className="text-sm text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200 disabled:opacity-50"
             >
-              {loading ? '加载中...' : '加载更多'}
+              {loading ? t('common.loading') : t('worklog.loadMore')}
             </button>
           </div>
         )}
@@ -257,13 +259,13 @@ function WorkLogPage(): JSX.Element {
       {/* Undo bar */}
       {lastDeleted && (
         <div className="fixed bottom-4 left-1/2 z-40 flex items-center gap-3 px-4 py-2.5 bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 rounded-lg shadow-lg text-sm animate-undo-slide-up">
-          <span>已删除一条日志</span>
+          <span>{t('worklog.deletedOne')}</span>
           <button
             onClick={handleUndo}
             className="flex items-center gap-1 font-medium text-blue-300 dark:text-blue-600 hover:text-blue-200 dark:hover:text-blue-500"
           >
             <Undo2 className="w-3.5 h-3.5" />
-            撤销
+            {t('worklog.undo')}
           </button>
         </div>
       )}

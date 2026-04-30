@@ -7,6 +7,7 @@ import StatsPage from './pages/StatsPage'
 import SettingsPage from './pages/SettingsPage'
 import { QuickCreate } from './components/QuickCreate'
 import { useThemeStore } from './stores/themeStore'
+import { useI18n, useLanguageStore } from './stores/languageStore'
 
 type Page = 'worklog' | 'kanban' | 'report' | 'stats' | 'settings'
 type QuickCreateMode = 'log' | 'task' | null
@@ -15,9 +16,12 @@ function App(): JSX.Element {
   const [currentPage, setCurrentPage] = useState<Page>('worklog')
   const [quickCreate, setQuickCreate] = useState<QuickCreateMode>(null)
   const initTheme = useThemeStore((s) => s.init)
+  const initLanguage = useLanguageStore((s) => s.init)
+  const { t } = useI18n()
 
   useEffect(() => {
     initTheme()
+    initLanguage()
   }, [])
 
   const handleKeyDown = useCallback(
@@ -99,16 +103,16 @@ function App(): JSX.Element {
         <div className="flex items-center gap-1">
           <h1 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100 mr-4">WorkPulse</h1>
           <nav className="flex gap-1">
-            {navBtn('worklog', <ClipboardList className="inline-block w-4 h-4 mr-1 -mt-0.5" />, '日志')}
-            {navBtn('kanban', <Columns3 className="inline-block w-4 h-4 mr-1 -mt-0.5" />, '看板')}
-            {navBtn('report', <FileText className="inline-block w-4 h-4 mr-1 -mt-0.5" />, '报告')}
-            {navBtn('stats', <BarChart3 className="inline-block w-4 h-4 mr-1 -mt-0.5" />, '统计')}
+            {navBtn('worklog', <ClipboardList className="inline-block w-4 h-4 mr-1 -mt-0.5" />, t('nav.worklog'))}
+            {navBtn('kanban', <Columns3 className="inline-block w-4 h-4 mr-1 -mt-0.5" />, t('nav.kanban'))}
+            {navBtn('report', <FileText className="inline-block w-4 h-4 mr-1 -mt-0.5" />, t('nav.report'))}
+            {navBtn('stats', <BarChart3 className="inline-block w-4 h-4 mr-1 -mt-0.5" />, t('nav.stats'))}
           </nav>
         </div>
         <button
           onClick={() => setCurrentPage('settings')}
           className="p-2 text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-md transition-colors settings-spin"
-          aria-label="设置"
+          aria-label={t('nav.settings')}
         >
           <Settings className="w-5 h-5" />
         </button>

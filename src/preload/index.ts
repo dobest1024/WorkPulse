@@ -3,8 +3,12 @@ import { electronAPI } from '@electron-toolkit/preload'
 
 type QuickCreateType = 'log' | 'task'
 type NavigatePage = 'worklog' | 'kanban' | 'report' | 'stats' | 'settings'
+type AppLanguage = 'system' | 'zh' | 'en'
 
 const api = {
+  app: {
+    setLanguage: (language: AppLanguage) => ipcRenderer.invoke('app:language:update', language)
+  },
   worklog: {
     add: (content: string, category?: string) =>
       ipcRenderer.invoke('worklog:add', content, category),
