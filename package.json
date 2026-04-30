@@ -1,6 +1,6 @@
 {
   "name": "workpulse",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Work log + AI report generator desktop app",
   "author": "dobest1024 <dobest1024@users.noreply.github.com>",
   "main": "./out/main/index.js",
